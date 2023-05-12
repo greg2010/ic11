@@ -62,11 +62,13 @@ func (i3 *instruction3) ToString() string {
 	return fmt.Sprintf("%s %s %s %s", i3.cmd, i3.a.string(), i3.b.string(), i3.c.string())
 }
 
+//nolint:unused
 type instruction4 struct {
 	cmd        string
 	a, b, c, d *data
 }
 
+//nolint:unused
 func (i4 *instruction4) ToString() string {
 	return fmt.Sprintf("%s %s %s %s %s", i4.cmd, i4.a.string(), i4.b.string(), i4.c.string(), i4.d.string())
 }
@@ -110,7 +112,6 @@ func newRegisterData(register *register) *data {
 
 func newLabelData(label string) *data {
 	return &data{label: label}
-
 }
 
 type register struct {
@@ -133,9 +134,4 @@ func (r *register) deallocate() {
 
 func (r *register) name() string {
 	return fmt.Sprintf("r%d", r.i)
-}
-
-// registerName gets register name for register #i. i must be <= 14
-func registerName(i int) string {
-	return fmt.Sprintf("r%d", i)
 }

@@ -24,7 +24,6 @@ func (asm *asmprogram) print() string {
 }
 
 func (asm *asmprogram) getUniqueLabel() string {
-
 	lbl := fmt.Sprintf("L_%d", asm.labelCount)
 	asm.labelCount = asm.labelCount + 1
 
@@ -50,6 +49,8 @@ func (asm *asmprogram) emitArity3(cmd string, a, b, c *data) {
 	instruction := &instruction3{cmd: cmd, a: a, b: b, c: c}
 	asm.program = append(asm.program, instruction)
 }
+
+//nolint:unused
 func (asm *asmprogram) emitArity4(cmd string, a, b, c, d *data) {
 	instruction := &instruction4{cmd: cmd, a: a, b: b, c: c, d: d}
 	asm.program = append(asm.program, instruction)

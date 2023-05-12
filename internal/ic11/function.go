@@ -4,7 +4,6 @@ type funcCompiler struct {
 	funAST         *FunDec
 	varRegisterMap map[string]*register
 	globalConsts   map[string]float64
-	emitted        []string
 	tempRegisters  []*register
 	asmProgram     *asmprogram
 }
@@ -66,7 +65,7 @@ func (fc *funcCompiler) compileExpr(expr *Expr, out *register) (*data, error) {
 }
 
 func (fc *funcCompiler) compileUnary(unary *Unary, out *register) (*data, error) {
-	target, err := fc.compilePrimary(unary.Rhs, out)
+	target, err := fc.compilePrimary(unary.RHS, out)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +73,7 @@ func (fc *funcCompiler) compileUnary(unary *Unary, out *register) (*data, error)
 	// opt
 	if target.isValue() {
 		if unary.Op == "-" {
-			return newNumData(unary.Rhs.Number.Number * -1), nil
+			return newNumData(unary.RHS.Number.Number * -1), nil
 		}
 	}
 
@@ -118,39 +117,33 @@ func computeBinop(l, r float64, op string) (float64, error) {
 	case "==":
 		if l == r {
 			return float64(1), nil
-		} else {
-			return float64(0), nil
 		}
+		return float64(0), nil
 	case "!=":
 		if l != r {
 			return float64(1), nil
-		} else {
-			return float64(0), nil
 		}
+		return float64(0), nil
 	case ">=":
 		if l >= r {
 			return float64(1), nil
-		} else {
-			return float64(0), nil
 		}
+		return float64(0), nil
 	case ">":
 		if l > r {
 			return float64(1), nil
-		} else {
-			return float64(0), nil
 		}
+		return float64(0), nil
 	case "<=":
 		if l <= r {
 			return float64(1), nil
-		} else {
-			return float64(0), nil
 		}
+		return float64(0), nil
 	case "<":
 		if l < r {
 			return float64(1), nil
-		} else {
-			return float64(0), nil
 		}
+		return float64(0), nil
 	default:
 		return 0, ErrInvalidState
 	}
@@ -159,12 +152,15 @@ func computeBinop(l, r float64, op string) (float64, error) {
 func (fc *funcCompiler) compileBinary(binary *Binary, out *register) (*data, error) {
 	// Only passing out to right side (not left side) because if out is used on the right side,
 	//  and left side mutated the value, computation will be invalid
-	leftData, err := fc.compilePrimary(binary.Lhs, nil)
+	leftData, err := fc.compilePrimary(binary.LHS, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	rightData, err := fc.compilePrimary(binary.Rhs, out)
+	rightData, err := fc.compilePrimary(binary.RHS, out)
+	if err != nil {
+		return nil, err
+	}
 
 	//opt
 	if leftData.isValue() && rightData.isValue() {
@@ -250,7 +246,6 @@ func (fc *funcCompiler) getSymbolData(symbol string) *data {
 	// search assigned registers
 	if reg, found := fc.varRegisterMap[symbol]; found {
 		return newRegisterData(reg)
-
 	}
 
 	return nil
@@ -383,7 +378,6 @@ func (fc *funcCompiler) compileIfStmt(ifStmt *IfStmt) error {
 }
 
 func (fc *funcCompiler) compileWhileStmt(whileStmt *WhileStmt) error {
-
 	loopStartLbl := newLabelData(fc.asmProgram.getUniqueLabel())
 	loopEndLbl := newLabelData(fc.asmProgram.getUniqueLabel())
 	fc.asmProgram.emitJ(loopEndLbl)
