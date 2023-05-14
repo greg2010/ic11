@@ -6,21 +6,29 @@ import (
 )
 
 type asmprogram struct {
-	program    []instruction
-	labelCount int
+	program           []instruction
+	labelOptimization bool
+	labelMap          map[string]int
+	labelCount        int
 }
 
-func newASMProgram() *asmprogram {
-	return &asmprogram{program: []instruction{}, labelCount: 0}
+func newASMProgram(labelOptimization bool) *asmprogram {
+	return &asmprogram{program: []instruction{}, labelCount: 0, labelOptimization: labelOptimization, labelMap: make(map[string]int)}
 }
 
-func (asm *asmprogram) print() string {
+func (asm *asmprogram) print() (string, error) {
 	strArr := []string{}
 	for _, instr := range asm.program {
+		if asm.labelOptimization {
+			err := instr.ReplaceLabels(asm.labelMap)
+			if err != nil {
+				return "", err
+			}
+		}
 		strArr = append(strArr, instr.ToString())
 	}
 
-	return strings.Join(strArr, "\n")
+	return strings.Join(strArr, "\n"), nil
 }
 
 func (asm *asmprogram) getUniqueLabel() string {
@@ -31,95 +39,124 @@ func (asm *asmprogram) getUniqueLabel() string {
 }
 
 func (asm *asmprogram) emitLabel(lbl string) {
-	instruction := &label{label: lbl}
-	asm.program = append(asm.program, instruction)
+	if asm.labelOptimization {
+		curLine := len(asm.program)
+		asm.labelMap[lbl] = curLine
+	} else {
+		instruction := &label{label: lbl}
+		asm.program = append(asm.program, instruction)
+	}
 }
 
-func (asm *asmprogram) emitArity1(cmd string, a *data) {
-	instruction := &instruction1{cmd: cmd, a: a}
-	asm.program = append(asm.program, instruction)
-}
-
-func (asm *asmprogram) emitArity2(cmd string, a, b *data) {
-	instruction := &instruction2{cmd: cmd, a: a, b: b}
-	asm.program = append(asm.program, instruction)
-}
-
-func (asm *asmprogram) emitArity3(cmd string, a, b, c *data) {
-	instruction := &instruction3{cmd: cmd, a: a, b: b, c: c}
-	asm.program = append(asm.program, instruction)
-}
-
-//nolint:unused
-func (asm *asmprogram) emitArity4(cmd string, a, b, c, d *data) {
-	instruction := &instruction4{cmd: cmd, a: a, b: b, c: c, d: d}
+func (asm *asmprogram) emitArityN(cmd string, args ...*data) {
+	instruction := newInstructionN(cmd, args...)
 	asm.program = append(asm.program, instruction)
 }
 
 func (asm *asmprogram) emitMove(a, b *data) {
-	asm.emitArity2(move, a, b)
+	asm.emitArityN(move, a, b)
 }
 
 func (asm *asmprogram) emitAdd(a, b, c *data) {
-	asm.emitArity3(add, a, b, c)
+	asm.emitArityN(add, a, b, c)
 }
 
 func (asm *asmprogram) emitSub(a, b, c *data) {
-	asm.emitArity3(sub, a, b, c)
+	asm.emitArityN(sub, a, b, c)
 }
 
 func (asm *asmprogram) emitMul(a, b, c *data) {
-	asm.emitArity3(mul, a, b, c)
+	asm.emitArityN(mul, a, b, c)
 }
 
 func (asm *asmprogram) emitDiv(a, b, c *data) {
-	asm.emitArity3(div, a, b, c)
+	asm.emitArityN(div, a, b, c)
 }
 
 func (asm *asmprogram) emitSge(a, b, c *data) {
-	asm.emitArity3(sge, a, b, c)
+	asm.emitArityN(sge, a, b, c)
 }
 
 func (asm *asmprogram) emitSgt(a, b, c *data) {
-	asm.emitArity3(sgt, a, b, c)
+	asm.emitArityN(sgt, a, b, c)
 }
 
 func (asm *asmprogram) emitSle(a, b, c *data) {
-	asm.emitArity3(sle, a, b, c)
+	asm.emitArityN(sle, a, b, c)
 }
 
 func (asm *asmprogram) emitSlt(a, b, c *data) {
-	asm.emitArity3(slt, a, b, c)
+	asm.emitArityN(slt, a, b, c)
 }
 
 func (asm *asmprogram) emitSeq(a, b, c *data) {
-	asm.emitArity3(seq, a, b, c)
+	asm.emitArityN(seq, a, b, c)
 }
 
 func (asm *asmprogram) emitSne(a, b, c *data) {
-	asm.emitArity3(sne, a, b, c)
+	asm.emitArityN(sne, a, b, c)
 }
 
 func (asm *asmprogram) emitJ(a *data) {
-	asm.emitArity1(j, a)
+	asm.emitArityN(j, a)
 }
 
 func (asm *asmprogram) emitBnez(a, b *data) {
-	asm.emitArity2(bnez, a, b)
+	asm.emitArityN(bnez, a, b)
 }
 
 func (asm *asmprogram) emitBeqz(a, b *data) {
-	asm.emitArity2(beqz, a, b)
+	asm.emitArityN(beqz, a, b)
 }
 
 func (asm *asmprogram) emitSin(a, b *data) {
-	asm.emitArity2(sin, a, b)
+	asm.emitArityN(sin, a, b)
 }
 
 func (asm *asmprogram) emitCos(a, b *data) {
-	asm.emitArity2(cos, a, b)
+	asm.emitArityN(cos, a, b)
 }
 
 func (asm *asmprogram) emitTan(a, b *data) {
-	asm.emitArity2(tan, a, b)
+	asm.emitArityN(tan, a, b)
+}
+
+func (asm *asmprogram) emitL(a, b, c *data) {
+	asm.emitArityN(l, a, b, c)
+}
+
+func (asm *asmprogram) emitS(a, b, c *data) {
+	asm.emitArityN(s, a, b, c)
+}
+
+func (asm *asmprogram) emitSb(a, b, c *data) {
+	asm.emitArityN(sb, a, b, c)
+}
+
+func (asm *asmprogram) emitYield() {
+	asm.emitArityN(yield)
+}
+
+func (asm *asmprogram) emitBge(a, b, c *data) {
+	asm.emitArityN(bge, a, b, c)
+}
+
+func (asm *asmprogram) emitBgt(a, b, c *data) {
+	asm.emitArityN(bgt, a, b, c)
+}
+
+func (asm *asmprogram) emitBle(a, b, c *data) {
+	asm.emitArityN(ble, a, b, c)
+}
+
+func (asm *asmprogram) emitBlt(a, b, c *data) {
+	asm.emitArityN(blt, a, b, c)
+}
+
+func (asm *asmprogram) emitBeq(a, b, c *data) {
+	asm.emitArityN(beq, a, b, c)
+}
+
+func (asm *asmprogram) emitBne(a, b, c *data) {
+	asm.emitArityN(bne, a, b, c)
 }

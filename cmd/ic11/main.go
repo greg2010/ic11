@@ -24,7 +24,9 @@ func main() {
 
 	fname := args[0]
 
-	compiler, err := ic11.NewCompiler(l, fname)
+	conf := ic11.CompilerOpts{true, true, true}
+
+	compiler, err := ic11.NewCompiler(l, fname, conf)
 	if err != nil {
 		l.Fatal(err)
 	}

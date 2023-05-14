@@ -1,8 +1,29 @@
 //nolint:govet
+//nolint:structtag
 package ic11
 
 import (
+	"github.com/alecthomas/participle/v2"
 	"github.com/alecthomas/participle/v2/lexer"
+)
+
+var (
+	lex = lexer.MustSimple([]lexer.SimpleRule{
+		{Name: "comment", Pattern: `//.*|/\*.*?\*/`},
+		{Name: "whitespace", Pattern: `\s+`},
+		{Name: "Define", Pattern: "#define"},
+		{Name: "Type", Pattern: `\bnum\b`},
+		{Name: "Device", Pattern: "d([0-6]|b)(:[0-9])?"},
+		{Name: "Ident", Pattern: `\b([a-zA-Z_][a-zA-Z0-9_]*)\b`},
+		{Name: "Punct", Pattern: `[-,()*/+%{};&!=:<>]|\[|\]`},
+		{Name: "QuotedStr", Pattern: `"(.*?)"`},
+		{Name: "Float", Pattern: `\d+(?:\.\d+)?`},
+		{Name: "Int", Pattern: `\d+`},
+	})
+	parser = participle.MustBuild[Program](
+		participle.Unquote("QuotedStr"),
+		participle.Lexer(lex),
+		participle.UseLookahead(600))
 )
 
 // https://www.it.uu.se/katalog/aleji304/CompilersProject/uc.html
@@ -53,15 +74,16 @@ type Program struct {
 type TopDec struct {
 	Pos lexer.Position
 
-	FunDec   *FunDec   `  @@`
-	ConstDec *ConstDec `| @@`
-	VarDec   *VarDec   `| @@ ";"`
+	FunDec    *FunDec    `  @@`
+	DefineDec *DefineDec `| @@`
+	VarDec    *VarDec    `| @@ ";"`
 }
 
-type ConstDec struct {
-	Pos   lexer.Position
-	Name  string  `Define @Ident`
-	Value *Number `@@`
+type DefineDec struct {
+	Pos    lexer.Position
+	Name   string  `Define @Ident`
+	Device string  `@Device`
+	Value  *Number `| @@`
 }
 
 type VarDec struct {
@@ -109,8 +131,9 @@ type Stmt struct {
 	IfStmt     *IfStmt     `  @@`
 	ReturnStmt *ReturnStmt `| @@`
 	WhileStmt  *WhileStmt  `| @@`
-	Block      *Stmts      `| "{" @@ "}"`
 	Assignment *Assignment `| @@`
+	Expr       *Expr       `| @@`
+	Block      *Stmts      `| "{" @@ "}"`
 	Empty      bool        `| @";"`
 }
 
@@ -155,7 +178,7 @@ type Binary struct {
 	Pos lexer.Position
 
 	LHS *Primary `@@`
-	Op  string   `@( "|" "|" | "&" "&" | "!" "=" | ("!"|"="|"<"|">") "="? | "+" | "-" | "/" | "*" )`
+	Op  string   `@( "|" "|" | "&" "&" | "!" "=" | ("!"|"<"|">") "="? | "=" "=" | "+" | "-" | "/" | "*" )`
 	RHS *Primary `@@`
 }
 
@@ -169,15 +192,55 @@ type Unary struct {
 type Primary struct {
 	Pos lexer.Position
 
-	Number        *Number   `  @@`
-	CallFunc      *CallFunc `| @@`
-	Ident         string    `| @Ident`
-	SubExpression *Expr     `| "(" @@ ")" `
+	HashConst         *HashConst         `  @@`
+	Device            string             `| @Device`
+	BuiltinArity3Func *BuiltinArity3Func `| @@`
+	BuiltinArity2Func *BuiltinArity2Func `| @@`
+	BuiltinArity1Func *BuiltinArity1Func `| @@`
+	BuiltinArity0Func *BuiltinArity0Func `| @@`
+	CallFunc          *CallFunc          `| @@`
+	Number            *Number            `| @@`
+	Ident             string             `| @Ident`
+	StringValue       string             "| @QuotedStr"
+	SubExpression     *Expr              `| "(" @@ ")" `
 }
 
 // Int | Float union type
 type Number struct {
 	Number float64 `@('-'? (Float | Int))`
+}
+
+// Special function types
+type HashConst struct {
+	Pos lexer.Position
+
+	Arg string `"hash" "(" @QuotedStr ")"`
+}
+
+type BuiltinArity0Func struct {
+	Pos lexer.Position
+	Op  string `@("yield") "(" ")"`
+}
+
+type BuiltinArity1Func struct {
+	Pos lexer.Position
+	Op  string `@("sin" | "cos" | "tan")`
+	Arg *Expr  `"(" @@ ")"`
+}
+
+type BuiltinArity2Func struct {
+	Pos  lexer.Position
+	Op   string `@("load")`
+	Arg1 *Expr  `"(" @@ ","`
+	Arg2 *Expr  `@@ ")"`
+}
+
+type BuiltinArity3Func struct {
+	Pos  lexer.Position
+	Op   string `@("store" | "store_batch")`
+	Arg1 *Expr  `"(" @@ ","`
+	Arg2 *Expr  ` @@ ","`
+	Arg3 *Expr  `@@ ")"`
 }
 
 type CallFunc struct {

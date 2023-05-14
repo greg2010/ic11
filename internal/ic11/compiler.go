@@ -2,9 +2,9 @@ package ic11
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
-	"github.com/alecthomas/participle/v2"
 	"github.com/alecthomas/participle/v2/lexer"
 	"github.com/alecthomas/repr"
 	"go.uber.org/zap"
@@ -17,35 +17,50 @@ var ErrInvalidState = errors.New("parser produced invalid state")
 var ErrOutOfTempRegisters = errors.New("compiler ran out of temporary registers")
 var ErrDiv0 = errors.New("division by 0")
 var ErrInvalidFuncCall = errors.New("invalid function call")
+var ErrUnknownLabel = errors.New("unknown label")
 
-var (
-	lex = lexer.MustSimple([]lexer.SimpleRule{
-		{Name: "comment", Pattern: `//.*|/\*.*?\*/`},
-		{Name: "whitespace", Pattern: `\s+`},
-		{Name: "Define", Pattern: "#define"},
-		{Name: "Type", Pattern: `\bnum\b`},
-		{Name: "Ident", Pattern: `\b([a-zA-Z_][a-zA-Z0-9_]*)\b`},
-		{Name: "Punct", Pattern: `[-,()*/+%{};&!=:<>]|\[|\]`},
-		{Name: "Float", Pattern: `\d+(?:\.\d+)?`},
-		{Name: "Int", Pattern: `\d+`},
-	})
-	parser = participle.MustBuild[Program](
-		participle.Lexer(lex),
-		participle.UseLookahead(600))
-)
-
-type Compiler struct {
-	l   *zap.SugaredLogger
-	fn  string
-	ast *Program
-	asm *asmprogram
+type CompilerOpts struct {
+	OptimizeLabels  bool
+	PrecomputeExprs bool
+	OptimizeJumps   bool
 }
 
-func NewCompiler(l *zap.SugaredLogger, fn string) (*Compiler, error) {
+type Compiler struct {
+	l    *zap.SugaredLogger
+	fn   string
+	ast  *Program
+	asm  *asmprogram
+	conf CompilerOpts
+}
+
+type CompilerError struct {
+	Pos      *lexer.Position
+	Err      error
+	CausedBy *CompilerError
+}
+
+func (ce CompilerError) Error() string {
+	locHeader := ""
+
+	if ce.Pos != nil {
+		locHeader = fmt.Sprintf("%s: %d:%d ", ce.Pos.Filename, ce.Pos.Line, ce.Pos.Column)
+	}
+
+	errStr := fmt.Sprintf("%s%s", locHeader, ce.Err.Error())
+
+	if ce.CausedBy != nil {
+		errStr = fmt.Sprintf("%s\nCaused by: %s", errStr, ce.CausedBy.Error())
+	}
+
+	return errStr
+}
+
+func NewCompiler(l *zap.SugaredLogger, fn string, conf CompilerOpts) (*Compiler, error) {
 	c := &Compiler{
-		l:   l,
-		fn:  fn,
-		asm: newASMProgram(),
+		l:    l,
+		fn:   fn,
+		asm:  newASMProgram(conf.OptimizeLabels),
+		conf: conf,
 	}
 
 	// Parse microC into an AST
@@ -81,23 +96,37 @@ func (comp *Compiler) getConsts() map[string]float64 {
 	vals := make(map[string]float64)
 
 	for _, def := range comp.ast.TopDec {
-		if def.ConstDec != nil {
-			vals[def.ConstDec.Name] = def.ConstDec.Value.Number
+		if def.DefineDec != nil && def.DefineDec.Value != nil {
+			vals[def.DefineDec.Name] = def.DefineDec.Value.Number
 		}
 	}
 
 	return vals
 }
 
+func (comp *Compiler) getDeviceAliases() map[string]string {
+	vals := make(map[string]string)
+
+	for _, def := range comp.ast.TopDec {
+		if def.DefineDec != nil && def.DefineDec.Device != "" {
+			vals[def.DefineDec.Name] = def.DefineDec.Device
+		}
+	}
+
+	return vals
+
+}
+
 func (comp *Compiler) Compile() (string, error) {
 	consts := comp.getConsts()
+	deviceAliases := comp.getDeviceAliases()
 
 	mainFunc := comp.getFunc("main")
 	if mainFunc == nil {
-		return "", ErrNoMain
+		return "", &CompilerError{Err: ErrNoMain}
 	}
 
-	mainComp, err := newFuncCompiler(comp.asm, mainFunc, consts)
+	mainComp, err := newFuncCompiler(comp.asm, comp.conf, mainFunc, consts, deviceAliases)
 	if err != nil {
 		return "", err
 	}
@@ -107,7 +136,10 @@ func (comp *Compiler) Compile() (string, error) {
 		return "", err
 	}
 
-	outStr := comp.asm.print()
+	outStr, err := comp.asm.print()
+	if err != nil {
+		return "", err
+	}
 
 	return outStr, nil
 }
