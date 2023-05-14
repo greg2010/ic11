@@ -348,12 +348,11 @@ func (fc *funcCompiler) compileBuiltinArity1Func(fun *BuiltinArity1Func, out *re
 
 	if fc.conf.PrecomputeExprs && arg.isFloatValue() {
 		precomp, err := computeBuiltinArity1(arg.floatValue, fun.Op)
-		if err != nil {
-			return nil, err
+		if err == nil {
+			return newNumData(precomp), nil
 		}
-
-		return newNumData(precomp), nil
 	}
+
 	targetReg := out
 	if targetReg == nil {
 		var err error
@@ -380,6 +379,23 @@ func (fc *funcCompiler) compileBuiltinArity1Func(fun *BuiltinArity1Func, out *re
 }
 
 func (fc *funcCompiler) compileBuiltinArity2Func(fun *BuiltinArity2Func, out *register) (*data, error) {
+	arg1, err := fc.compileExpr(fun.Arg1, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	arg2, err := fc.compileExpr(fun.Arg2, out)
+	if err != nil {
+		return nil, err
+	}
+
+	if fc.conf.PrecomputeExprs && arg1.isFloatValue() && arg2.isFloatValue() {
+		precomp, err := computeBuiltinArity2(arg1.floatValue, arg2.floatValue, fun.Op)
+		if err == nil {
+			return newNumData(precomp), nil
+		}
+	}
+
 	targetReg := out
 	if targetReg == nil {
 		var err error
@@ -389,22 +405,14 @@ func (fc *funcCompiler) compileBuiltinArity2Func(fun *BuiltinArity2Func, out *re
 		}
 	}
 
-	arg1, err := fc.compileExpr(fun.Arg1, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	arg2, err := fc.compileExpr(fun.Arg2, targetReg)
-	if err != nil {
-		return nil, err
-	}
-
 	targetData := newRegisterData(targetReg)
 
 	switch fun.Op {
 	case "load":
 		// Assert arg1 is device and arg2 is int or hash
 		fc.asmProgram.emitL(targetData, arg1, arg2)
+	case "mod":
+		fc.asmProgram.emitMod(targetData, arg1, arg2)
 	default:
 		return nil, CompilerError{Err: ErrInvalidState, Pos: &fun.Pos}
 	}
@@ -486,13 +494,13 @@ func (fc *funcCompiler) compileCondJump(op string, l, r, jumpTo *data, inverse b
 	if inverse {
 		switch op {
 		case ">":
-			op = "<"
-		case ">=":
 			op = "<="
+		case ">=":
+			op = "<"
 		case "<":
-			op = ">"
-		case "<=":
 			op = ">="
+		case "<=":
+			op = ">"
 		case "==":
 			op = "!="
 		case "!=":
@@ -561,7 +569,7 @@ func (fc *funcCompiler) compileCondition(cond *Expr, jumpTo *data, inverse bool)
 
 func (fc *funcCompiler) compileIfStmt(ifStmt *IfStmt) error {
 	elseLbl := newLabelData(fc.asmProgram.getUniqueLabel())
-	err := fc.compileCondition(ifStmt.Condition, elseLbl, false)
+	err := fc.compileCondition(ifStmt.Condition, elseLbl, true)
 	if err != nil {
 		return err
 	}
@@ -574,7 +582,7 @@ func (fc *funcCompiler) compileIfStmt(ifStmt *IfStmt) error {
 	fc.asmProgram.emitLabel(elseLbl.label)
 	if ifStmt.Else != nil {
 		endLbl := newLabelData(fc.asmProgram.getUniqueLabel())
-		err := fc.compileCondition(ifStmt.Condition, endLbl, true)
+		err := fc.compileCondition(ifStmt.Condition, endLbl, false)
 		err = fc.compileStmt(ifStmt.Else)
 		if err != nil {
 			return err
@@ -597,7 +605,7 @@ func (fc *funcCompiler) compileWhileStmt(whileStmt *WhileStmt) error {
 	}
 
 	fc.asmProgram.emitLabel(loopEndLbl.label)
-	err = fc.compileCondition(whileStmt.Condition, loopStartLbl, false)
+	err = fc.compileCondition(whileStmt.Condition, loopStartLbl, true)
 	return nil
 }
 
@@ -690,6 +698,15 @@ func computeBuiltinArity1(l float64, op string) (float64, error) {
 		return math.Cos(l), nil
 	case "tan":
 		return math.Tan(l), nil
+	default:
+		return 0, CompilerError{Err: ErrInvalidState}
+	}
+}
+
+func computeBuiltinArity2(l, r float64, op string) (float64, error) {
+	switch op {
+	case "mod":
+		return math.Mod(l, r), nil
 	default:
 		return 0, CompilerError{Err: ErrInvalidState}
 	}

@@ -230,7 +230,7 @@ type BuiltinArity1Func struct {
 
 type BuiltinArity2Func struct {
 	Pos  lexer.Position
-	Op   string `@("load")`
+	Op   string `@("load" | "mod")`
 	Arg1 *Expr  `"(" @@ ","`
 	Arg2 *Expr  `@@ ")"`
 }

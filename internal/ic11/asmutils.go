@@ -25,6 +25,7 @@ const (
 	sin   = "sin"
 	cos   = "cos"
 	tan   = "tan"
+	mod   = "mod"
 	l     = "l"
 	lb    = "lb"
 	lr    = "lr"

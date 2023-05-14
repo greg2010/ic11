@@ -121,6 +121,10 @@ func (asm *asmprogram) emitTan(a, b *data) {
 	asm.emitArityN(tan, a, b)
 }
 
+func (asm *asmprogram) emitMod(a, b, c *data) {
+	asm.emitArityN(mod, a, b, c)
+}
+
 func (asm *asmprogram) emitL(a, b, c *data) {
 	asm.emitArityN(l, a, b, c)
 }
