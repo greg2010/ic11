@@ -15,7 +15,7 @@ var (
 		{Name: "Type", Pattern: `\bnum\b`},
 		{Name: "Device", Pattern: "d([0-6]|b)(:[0-9])?"},
 		{Name: "Ident", Pattern: `\b([a-zA-Z_][a-zA-Z0-9_]*)\b`},
-		{Name: "Punct", Pattern: `[-,()*/+%{};&!=:<>]|\[|\]`},
+		{Name: "Punct", Pattern: `[-,()*/+%{};&\|!=:<>]|\[|\]`},
 		{Name: "QuotedStr", Pattern: `"(.*?)"`},
 		{Name: "Float", Pattern: `\d+(?:\.\d+)?`},
 		{Name: "Int", Pattern: `\d+`},
@@ -219,18 +219,24 @@ type HashConst struct {
 
 type BuiltinArity0Func struct {
 	Pos lexer.Position
-	Op  string `@("yield") "(" ")"`
+	Op  string `@("yield" | "rand") "(" ")"`
 }
 
 type BuiltinArity1Func struct {
 	Pos lexer.Position
-	Op  string `@("sin" | "cos" | "tan")`
-	Arg *Expr  `"(" @@ ")"`
+	Op  string `@("sin" | "cos" |
+	              "tan" | "abs" |
+	              "acos" | "asin" |
+				  "atan" | "ceil" |
+				  "floor" | "log" |
+				  "sqrt" | "round" |
+				  "trunc" )`
+	Arg *Expr `"(" @@ ")"`
 }
 
 type BuiltinArity2Func struct {
 	Pos  lexer.Position
-	Op   string `@("load" | "mod")`
+	Op   string `@("load" | "mod" | "xor" | "nor" | "max" | "min" )`
 	Arg1 *Expr  `"(" @@ ","`
 	Arg2 *Expr  `@@ ")"`
 }

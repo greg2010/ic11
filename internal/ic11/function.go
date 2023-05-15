@@ -134,11 +134,9 @@ func (fc *funcCompiler) compileBinary(binary *Binary, out *register) (*data, err
 
 	if fc.conf.PrecomputeExprs && leftData.isFloatValue() && rightData.isFloatValue() {
 		v, err := computeBinop(leftData.floatValue, rightData.floatValue, binary.Op)
-		if err != nil {
-			return nil, err
+		if err == nil && !math.IsNaN(v) {
+			return newNumData(v), nil
 		}
-
-		return newNumData(v), nil
 	}
 
 	var targetReg *register
@@ -202,6 +200,12 @@ func (fc *funcCompiler) compileBinary(binary *Binary, out *register) (*data, err
 	case "!=":
 		fc.asmProgram.emitSne(targetData, leftData, rightData)
 		return targetData, nil
+	case "&&":
+		fc.asmProgram.emitAnd(targetData, leftData, rightData)
+		return targetData, nil
+	case "||":
+		fc.asmProgram.emitOr(targetData, leftData, rightData)
+		return targetData, nil
 	default:
 		return nil, CompilerError{Err: ErrInvalidState, Pos: &binary.Pos}
 	}
@@ -248,7 +252,7 @@ func (fc *funcCompiler) compilePrimary(primary *Primary, out *register) (*data, 
 		//fc.compileCallFunc(primary.CallFunc, out)
 	}
 	if primary.BuiltinArity0Func != nil {
-		return nil, fc.compileBuiltinArity0Func(primary.BuiltinArity0Func)
+		return fc.compileBuiltinArity0Func(primary.BuiltinArity0Func, out)
 	}
 
 	if primary.BuiltinArity1Func != nil {
@@ -329,14 +333,27 @@ func (fc *funcCompiler) compilePrimary(primary *Primary, out *register) (*data, 
 		return nil, errors.New("not implemented")
 	}
 */
-func (fc *funcCompiler) compileBuiltinArity0Func(fun *BuiltinArity0Func) error {
+func (fc *funcCompiler) compileBuiltinArity0Func(fun *BuiltinArity0Func, out *register) (*data, error) {
+	targetReg := out
+	if targetReg == nil {
+		var err error
+		targetReg, err = fc.allocateTempRegister()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	targetData := newRegisterData(targetReg)
 	switch fun.Op {
 	case "yield":
 		fc.asmProgram.emitYield()
-		return nil
+		return nil, nil
+	case "rand":
+		fc.asmProgram.emitRand(targetData)
+		return targetData, nil
 	}
 
-	return CompilerError{Err: ErrInvalidState, Pos: &fun.Pos}
+	return nil, CompilerError{Err: ErrInvalidState, Pos: &fun.Pos}
 }
 
 func (fc *funcCompiler) compileBuiltinArity1Func(fun *BuiltinArity1Func, out *register) (*data, error) {
@@ -348,7 +365,7 @@ func (fc *funcCompiler) compileBuiltinArity1Func(fun *BuiltinArity1Func, out *re
 
 	if fc.conf.PrecomputeExprs && arg.isFloatValue() {
 		precomp, err := computeBuiltinArity1(arg.floatValue, fun.Op)
-		if err == nil {
+		if err == nil && !math.IsNaN(precomp) {
 			return newNumData(precomp), nil
 		}
 	}
@@ -371,6 +388,26 @@ func (fc *funcCompiler) compileBuiltinArity1Func(fun *BuiltinArity1Func, out *re
 		fc.asmProgram.emitCos(targetData, arg)
 	case "tan":
 		fc.asmProgram.emitTan(targetData, arg)
+	case "abs":
+		fc.asmProgram.emitAbs(targetData, arg)
+	case "acos":
+		fc.asmProgram.emitAcos(targetData, arg)
+	case "asin":
+		fc.asmProgram.emitAsin(targetData, arg)
+	case "atan":
+		fc.asmProgram.emitAtan(targetData, arg)
+	case "ceil":
+		fc.asmProgram.emitCeil(targetData, arg)
+	case "floor":
+		fc.asmProgram.emitFloor(targetData, arg)
+	case "log":
+		fc.asmProgram.emitLog(targetData, arg)
+	case "sqrt":
+		fc.asmProgram.emitSqrt(targetData, arg)
+	case "round":
+		fc.asmProgram.emitRound(targetData, arg)
+	case "trunc":
+		fc.asmProgram.emitTrunc(targetData, arg)
 	default:
 		return nil, CompilerError{Err: ErrInvalidState, Pos: &fun.Pos}
 	}
@@ -391,7 +428,7 @@ func (fc *funcCompiler) compileBuiltinArity2Func(fun *BuiltinArity2Func, out *re
 
 	if fc.conf.PrecomputeExprs && arg1.isFloatValue() && arg2.isFloatValue() {
 		precomp, err := computeBuiltinArity2(arg1.floatValue, arg2.floatValue, fun.Op)
-		if err == nil {
+		if err == nil && !math.IsNaN(precomp) {
 			return newNumData(precomp), nil
 		}
 	}
@@ -413,6 +450,14 @@ func (fc *funcCompiler) compileBuiltinArity2Func(fun *BuiltinArity2Func, out *re
 		fc.asmProgram.emitL(targetData, arg1, arg2)
 	case "mod":
 		fc.asmProgram.emitMod(targetData, arg1, arg2)
+	case "xor":
+		fc.asmProgram.emitXor(targetData, arg1, arg2)
+	case "nor":
+		fc.asmProgram.emitNor(targetData, arg1, arg2)
+	case "max":
+		fc.asmProgram.emitMax(targetData, arg1, arg2)
+	case "min":
+		fc.asmProgram.emitMin(targetData, arg1, arg2)
 	default:
 		return nil, CompilerError{Err: ErrInvalidState, Pos: &fun.Pos}
 	}
@@ -474,24 +519,24 @@ func (fc *funcCompiler) compileAssignment(assignment *Assignment) error {
 	return nil
 }
 
-func (fc *funcCompiler) compileJump(condData *data, jumpTo *data, inverse bool) {
+func (fc *funcCompiler) compileJump(condData *data, jumpTo *data, invertCondition bool) {
 	if fc.conf.OptimizeJumps && condData.isFloatValue() {
-		if condData.floatValue != 0 || (condData.floatValue == 0 && inverse) {
+		if floatToBool(condData.floatValue) != invertCondition {
 			fc.asmProgram.emitJ(jumpTo)
-			return
 		}
+
+		return
 	}
 
-	if inverse {
-		fc.asmProgram.emitBnez(condData, jumpTo)
-	} else {
+	if invertCondition {
 		fc.asmProgram.emitBeqz(condData, jumpTo)
+	} else {
+		fc.asmProgram.emitBnez(condData, jumpTo)
 	}
-	return
 }
 
-func (fc *funcCompiler) compileCondJump(op string, l, r, jumpTo *data, inverse bool) error {
-	if inverse {
+func (fc *funcCompiler) compileCondJump(op string, l, r, jumpTo *data, invertCondition bool) error {
+	if invertCondition {
 		switch op {
 		case ">":
 			op = "<="
@@ -530,7 +575,8 @@ func (fc *funcCompiler) compileCondJump(op string, l, r, jumpTo *data, inverse b
 	return nil
 }
 
-func (fc *funcCompiler) compileCondition(cond *Expr, jumpTo *data, inverse bool) error {
+// compileCondition compiles conditional branch if cond != invert condition
+func (fc *funcCompiler) compileCondition(cond *Expr, jumpTo *data, invertCondition bool) error {
 	if fc.conf.OptimizeJumps && cond.Binary != nil && opHasCondJump(cond.Binary.Op) {
 		l, err := fc.compilePrimary(cond.Binary.LHS, nil)
 		if err != nil {
@@ -542,6 +588,7 @@ func (fc *funcCompiler) compileCondition(cond *Expr, jumpTo *data, inverse bool)
 			return err
 		}
 
+		// If result of binary expression can be computed, compute and issue unconditional jump
 		if fc.conf.PrecomputeExprs && l.isFloatValue() && r.isFloatValue() {
 			v, err := computeBinop(l.floatValue, r.floatValue, cond.Binary.Op)
 			if err != nil {
@@ -549,46 +596,54 @@ func (fc *funcCompiler) compileCondition(cond *Expr, jumpTo *data, inverse bool)
 			}
 
 			condVal := newNumData(v)
-			fc.compileJump(condVal, jumpTo, inverse)
+			fc.compileJump(condVal, jumpTo, invertCondition)
 			return nil
 		}
 
-		return fc.compileCondJump(cond.Binary.Op, l, r, jumpTo, inverse)
+		// Issue binary conditional jump
+		return fc.compileCondJump(cond.Binary.Op, l, r, jumpTo, invertCondition)
 
-	} else {
-		cond, err := fc.compileExpr(cond, nil)
-		if err != nil {
-			return err
-		}
-
-		fc.compileJump(cond, jumpTo, inverse)
 	}
 
+	condVal, err := fc.compileExpr(cond, nil)
+	if err != nil {
+		return err
+	}
+
+	fc.compileJump(condVal, jumpTo, invertCondition)
 	return nil
+
 }
 
 func (fc *funcCompiler) compileIfStmt(ifStmt *IfStmt) error {
-	elseLbl := newLabelData(fc.asmProgram.getUniqueLabel())
-	err := fc.compileCondition(ifStmt.Condition, elseLbl, true)
-	if err != nil {
-		return err
-	}
+	hasElse := ifStmt.Else != nil
+	ifLbl := newLabelData(fc.asmProgram.getUniqueLabel())
+	endLbl := newLabelData(fc.asmProgram.getUniqueLabel())
 
-	err = fc.compileStmt(ifStmt.Body)
-	if err != nil {
-		return err
-	}
-
-	fc.asmProgram.emitLabel(elseLbl.label)
-	if ifStmt.Else != nil {
-		endLbl := newLabelData(fc.asmProgram.getUniqueLabel())
-		err := fc.compileCondition(ifStmt.Condition, endLbl, false)
+	// If else condition exists, we issue jump to normal ifLbl. Otherwise, we jump straight to endLbl and invert the condition
+	if !hasElse {
+		err := fc.compileCondition(ifStmt.Condition, endLbl, true)
+		if err != nil {
+			return err
+		}
+	} else {
+		err := fc.compileCondition(ifStmt.Condition, ifLbl, false)
+		if err != nil {
+			return err
+		}
 		err = fc.compileStmt(ifStmt.Else)
 		if err != nil {
 			return err
 		}
-		fc.asmProgram.emitLabel(endLbl.label)
+		fc.asmProgram.emitJ(endLbl)
+		fc.asmProgram.emitLabel(ifLbl.label)
 	}
+
+	err := fc.compileStmt(ifStmt.Body)
+	if err != nil {
+		return err
+	}
+	fc.asmProgram.emitLabel(endLbl.label)
 
 	return nil
 }
@@ -605,7 +660,7 @@ func (fc *funcCompiler) compileWhileStmt(whileStmt *WhileStmt) error {
 	}
 
 	fc.asmProgram.emitLabel(loopEndLbl.label)
-	err = fc.compileCondition(whileStmt.Condition, loopStartLbl, true)
+	err = fc.compileCondition(whileStmt.Condition, loopStartLbl, false)
 	return nil
 }
 
@@ -698,6 +753,26 @@ func computeBuiltinArity1(l float64, op string) (float64, error) {
 		return math.Cos(l), nil
 	case "tan":
 		return math.Tan(l), nil
+	case "abs":
+		return math.Abs(l), nil
+	case "acos":
+		return math.Acos(l), nil
+	case "asin":
+		return math.Asin(l), nil
+	case "atan":
+		return math.Atan(l), nil
+	case "ceil":
+		return math.Ceil(l), nil
+	case "floor":
+		return math.Floor(l), nil
+	case "log":
+		return math.Log(l), nil
+	case "sqrt":
+		return math.Sqrt(l), nil
+	case "round":
+		return math.Round(l), nil
+	case "trunc":
+		return math.Trunc(l), nil
 	default:
 		return 0, CompilerError{Err: ErrInvalidState}
 	}
@@ -707,6 +782,14 @@ func computeBuiltinArity2(l, r float64, op string) (float64, error) {
 	switch op {
 	case "mod":
 		return math.Mod(l, r), nil
+	case "xor":
+		return boolToFloat(floatToBool(l) != floatToBool(r)), nil
+	case "nor":
+		return boolToFloat(!floatToBool(l) && !floatToBool(r)), nil
+	case "max":
+		return math.Max(l, r), nil
+	case "min":
+		return math.Min(l, r), nil
 	default:
 		return 0, CompilerError{Err: ErrInvalidState}
 	}
@@ -726,35 +809,21 @@ func computeBinop(l, r float64, op string) (float64, error) {
 		}
 		return l / r, nil
 	case "==":
-		if l == r {
-			return float64(1), nil
-		}
-		return float64(0), nil
+		return boolToFloat(l == r), nil
 	case "!=":
-		if l != r {
-			return float64(1), nil
-		}
-		return float64(0), nil
+		return boolToFloat(l != r), nil
 	case ">=":
-		if l >= r {
-			return float64(1), nil
-		}
-		return float64(0), nil
+		return boolToFloat(l >= r), nil
 	case ">":
-		if l > r {
-			return float64(1), nil
-		}
-		return float64(0), nil
+		return boolToFloat(l > r), nil
 	case "<=":
-		if l <= r {
-			return float64(1), nil
-		}
-		return float64(0), nil
+		return boolToFloat(l <= r), nil
 	case "<":
-		if l < r {
-			return float64(1), nil
-		}
-		return float64(0), nil
+		return boolToFloat(l < r), nil
+	case "&&":
+		return boolToFloat(floatToBool(l) && floatToBool(r)), nil
+	case "||":
+		return boolToFloat(floatToBool(l) || floatToBool(r)), nil
 	default:
 		return 0, CompilerError{Err: ErrInvalidState}
 	}
@@ -763,4 +832,16 @@ func computeBinop(l, r float64, op string) (float64, error) {
 // returns true if op has a special conditional jump instruction in the MIPS instruction set
 func opHasCondJump(op string) bool {
 	return op == "==" || op == "!=" || op == ">=" || op == ">" || op == "<" || op == "<="
+}
+
+func floatToBool(f float64) bool {
+	return f != 0
+}
+
+func boolToFloat(b bool) float64 {
+	if b {
+		return 1
+	} else {
+		return 0
+	}
 }

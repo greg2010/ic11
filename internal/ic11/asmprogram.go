@@ -164,3 +164,75 @@ func (asm *asmprogram) emitBeq(a, b, c *data) {
 func (asm *asmprogram) emitBne(a, b, c *data) {
 	asm.emitArityN(bne, a, b, c)
 }
+
+func (asm *asmprogram) emitAnd(a, b, c *data) {
+	asm.emitArityN(and, a, b, c)
+}
+
+func (asm *asmprogram) emitOr(a, b, c *data) {
+	asm.emitArityN(or, a, b, c)
+}
+
+func (asm *asmprogram) emitXor(a, b, c *data) {
+	asm.emitArityN(xor, a, b, c)
+}
+
+func (asm *asmprogram) emitNor(a, b, c *data) {
+	asm.emitArityN(nor, a, b, c)
+}
+
+func (asm *asmprogram) emitAbs(a, b *data) {
+	asm.emitArityN(abs, a, b)
+}
+
+func (asm *asmprogram) emitAcos(a, b *data) {
+	asm.emitArityN(acos, a, b)
+}
+
+func (asm *asmprogram) emitAsin(a, b *data) {
+	asm.emitArityN(asin, a, b)
+}
+
+func (asm *asmprogram) emitAtan(a, b *data) {
+	asm.emitArityN(atan, a, b)
+}
+
+func (asm *asmprogram) emitCeil(a, b *data) {
+	asm.emitArityN(ceil, a, b)
+}
+
+func (asm *asmprogram) emitExp(a, b *data) {
+	asm.emitArityN(exp, a, b)
+}
+
+func (asm *asmprogram) emitFloor(a, b *data) {
+	asm.emitArityN(floor, a, b)
+}
+
+func (asm *asmprogram) emitLog(a, b *data) {
+	asm.emitArityN(log, a, b)
+}
+
+func (asm *asmprogram) emitMax(a, b, c *data) {
+	asm.emitArityN(max, a, b, c)
+}
+
+func (asm *asmprogram) emitMin(a, b, c *data) {
+	asm.emitArityN(min, a, b, c)
+}
+
+func (asm *asmprogram) emitSqrt(a, b *data) {
+	asm.emitArityN(sqrt, a, b)
+}
+
+func (asm *asmprogram) emitRound(a, b *data) {
+	asm.emitArityN(round, a, b)
+}
+
+func (asm *asmprogram) emitTrunc(a, b *data) {
+	asm.emitArityN(trunc, a, b)
+}
+
+func (asm *asmprogram) emitRand(a *data) {
+	asm.emitArityN(rand, a)
+}
