@@ -213,15 +213,20 @@ type register struct {
 	temporary bool
 }
 
-func newRegister(id int, temporary bool) *register {
-	return &register{id: id, allocated: false, temporary: temporary}
+func newRegister(id int) *register {
+	return &register{id: id, allocated: false, temporary: false}
 }
 
-func (r *register) allocate() {
-	r.allocated = true
+func (r *register) setTemporary(isTemp bool) {
+	r.temporary = isTemp
 }
 
-func (r *register) deallocate() {
+func (r *register) setAllocated(isAllocated bool) {
+	r.allocated = isAllocated
+}
+
+func (r *register) release() {
+	r.temporary = false
 	r.allocated = false
 }
 

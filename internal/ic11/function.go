@@ -8,9 +8,10 @@ import (
 type funcCompiler struct {
 	funAST         *FunDec
 	varRegisterMap map[string]*register
+	varValueMap    map[string]float64
 	globalConsts   map[string]float64
 	globalDevices  map[string]string
-	tempRegisters  []*register
+	registers      []*register
 	asmProgram     *asmprogram
 	conf           CompilerOpts
 }
@@ -22,39 +23,59 @@ func newFuncCompiler(
 	globalConsts map[string]float64,
 	globalDevices map[string]string,
 ) (*funcCompiler, error) {
-	regsNeeded := len(funAST.Parameters) + len(funAST.FunBody.Locals)
-
-	if regsNeeded > 15 {
-		return nil, CompilerError{Pos: &funAST.FunBody.Pos, Err: ErrTooManyVars}
-	}
 
 	varRegisterMap := make(map[string]*register)
-	for i, v := range funAST.FunBody.Locals {
-		varRegisterMap[v.ScalarDec.Name] = newRegister(i, false)
-		varRegisterMap[v.ScalarDec.Name].allocate()
+	varValueMap := make(map[string]float64)
+	for _, v := range funAST.FunBody.Locals {
+		varValueMap[v.ScalarDec.Name] = 0
 	}
-
-	tempRegs := []*register{}
-	for i := regsNeeded; i < 15; {
-		tempRegs = append(tempRegs, newRegister(i, true))
+	regs := []*register{}
+	for i := 0; i < 15; {
+		regs = append(regs, newRegister(i))
 		i++
 	}
 
 	return &funcCompiler{
 		funAST:         funAST,
 		varRegisterMap: varRegisterMap,
+		varValueMap:    varValueMap,
 		globalConsts:   globalConsts,
 		globalDevices:  globalDevices,
-		tempRegisters:  tempRegs,
+		registers:      regs,
 		asmProgram:     asmProgram,
 		conf:           conf,
 	}, nil
 }
 
+func (fc *funcCompiler) getVariableData(varName string) (*data, error) {
+	if reg, found := fc.varRegisterMap[varName]; found {
+		return newRegisterData(reg), nil
+	}
+
+	if val, found := fc.varValueMap[varName]; found {
+		return newNumData(val), nil
+	}
+
+	return nil, ErrUnknownVar
+}
+
 func (fc *funcCompiler) allocateTempRegister() (*register, error) {
-	for _, reg := range fc.tempRegisters {
+	for _, reg := range fc.registers {
 		if !reg.allocated {
-			reg.allocate()
+			reg.setAllocated(true)
+			reg.setTemporary(true)
+			return reg, nil
+		}
+	}
+
+	return nil, CompilerError{Err: ErrOutOfTempRegisters}
+}
+
+func (fc *funcCompiler) allocatePermRegister() (*register, error) {
+	for _, reg := range fc.registers {
+		if !reg.allocated {
+			reg.setAllocated(true)
+			reg.setTemporary(false)
 			return reg, nil
 		}
 	}
@@ -150,15 +171,15 @@ func (fc *funcCompiler) compileBinary(binary *Binary, out *register) (*data, err
 
 	// unsure if this is correct
 	if out != nil && leftData.isTemporaryRegister() {
-		leftData.register.deallocate()
+		leftData.register.release()
 	}
 
 	if out != nil && rightData.isTemporaryRegister() && rightData.register.id != out.id {
-		rightData.register.deallocate()
+		rightData.register.release()
 	}
 
 	if out == nil && leftData.isTemporaryRegister() && rightData.isTemporaryRegister() {
-		rightData.register.deallocate()
+		rightData.register.release()
 	}
 
 	if targetReg == nil {
@@ -224,6 +245,13 @@ func (fc *funcCompiler) getSymbolData(symbol string) *data {
 	// search assigned registers
 	if reg, found := fc.varRegisterMap[symbol]; found {
 		return newRegisterData(reg)
+	}
+
+	if fc.conf.PropagateVariables {
+		// search value map
+		if value, found := fc.varValueMap[symbol]; found {
+			return newNumData(value)
+		}
 	}
 
 	return nil
@@ -497,26 +525,64 @@ func (fc *funcCompiler) compileBuiltinArity3Func(fun *BuiltinArity3Func) error {
 }
 
 func (fc *funcCompiler) compileAssignment(assignment *Assignment) error {
-	targetReg, found := fc.varRegisterMap[assignment.Left]
-	if !found {
-		return ErrUnknownVar
+	data, err := fc.getVariableData(assignment.Left)
+	if err != nil {
+		return err
 	}
+
+	targetReg := data.register
 
 	value, err := fc.compileExpr(assignment.Right, targetReg)
 	if err != nil {
 		return err
 	}
 
-	// if value is raw data (not a register) or if registers do not match, do the move
-	if value != nil && (!value.isRegister() || value.register.id != targetReg.id) {
-		fc.asmProgram.emitMove(newRegisterData(targetReg), value)
-		// if value is a temp register it's up to us here to free it
-		if value.register != nil && value.register.temporary {
-			value.register.deallocate()
-		}
+	if value == nil {
+		return ErrInvalidState
 	}
 
-	return nil
+	if value.isFloatValue() {
+		// if value is raw data and opt is enabled, update the value map
+		if fc.conf.PropagateVariables {
+			fc.varValueMap[assignment.Left] = value.floatValue
+			return nil
+		}
+
+		// haven't allocated a register yet
+		if targetReg == nil {
+			targetReg, err = fc.allocatePermRegister()
+			if err != nil {
+				return err
+			}
+		}
+		// move value to register, add to map
+		fc.asmProgram.emitMove(newRegisterData(targetReg), value)
+		fc.varRegisterMap[assignment.Left] = targetReg
+		return nil
+	}
+
+	if value.isRegister() {
+		if value.register.temporary && targetReg == nil {
+			// promote register to permanent and add to map
+			value.register.setTemporary(false)
+			fc.varRegisterMap[assignment.Left] = value.register
+			return nil
+		}
+
+		// haven't allocated a register yet
+		if targetReg == nil {
+			targetReg, err = fc.allocatePermRegister()
+			if err != nil {
+				return err
+			}
+		}
+		// move value to register, add to map
+		fc.asmProgram.emitMove(newRegisterData(targetReg), value)
+		fc.varRegisterMap[assignment.Left] = targetReg
+		return nil
+	}
+
+	return ErrInvalidState
 }
 
 func (fc *funcCompiler) compileJump(condData *data, jumpTo *data, invertCondition bool) {

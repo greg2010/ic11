@@ -20,10 +20,10 @@ var ErrInvalidFuncCall = errors.New("invalid function call")
 var ErrUnknownLabel = errors.New("unknown label")
 
 type CompilerOpts struct {
-	OptimizeLabels    bool
-	PrecomputeExprs   bool
-	OptimizeJumps     bool
-	EliminateDeadCode bool
+	OptimizeLabels     bool
+	PrecomputeExprs    bool
+	OptimizeJumps      bool
+	PropagateVariables bool
 }
 
 type Compiler struct {
