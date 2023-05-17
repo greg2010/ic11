@@ -20,6 +20,8 @@ var (
 		{Name: "Float", Pattern: `\d+(?:\.\d+)?`},
 		{Name: "Int", Pattern: `\d+`},
 	})
+
+	// Build parser
 	parser = participle.MustBuild[Program](
 		participle.Unquote("QuotedStr"),
 		participle.Lexer(lex),
@@ -69,6 +71,23 @@ type Program struct {
 	Pos lexer.Position
 
 	TopDec []*TopDec `@@*`
+}
+
+func mergeProgram(p1, p2 *Program) *Program {
+	newTopDec := []*TopDec{}
+	var p lexer.Position
+	if p1 != nil {
+		newTopDec = append(newTopDec, p1.TopDec...)
+		p = p1.Pos
+	}
+	if p2 != nil {
+		newTopDec = append(newTopDec, p2.TopDec...)
+		p = p2.Pos
+	}
+	return &Program{
+		Pos:    p,
+		TopDec: newTopDec,
+	}
 }
 
 type TopDec struct {

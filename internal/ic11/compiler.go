@@ -3,11 +3,10 @@ package ic11
 import (
 	"errors"
 	"fmt"
-	"os"
+	"io"
 
 	"github.com/alecthomas/participle/v2/lexer"
-	"github.com/alecthomas/repr"
-	"go.uber.org/zap"
+	"github.com/greg2010/ic11/internal/printer"
 )
 
 var ErrNoMain = errors.New("main function is missing")
@@ -26,12 +25,30 @@ type CompilerOpts struct {
 	PropagateVariables bool
 }
 
+func AllCompilerOpts() CompilerOpts {
+	return CompilerOpts{
+		OptimizeLabels:     true,
+		PrecomputeExprs:    true,
+		OptimizeJumps:      true,
+		PropagateVariables: true,
+	}
+}
+
+func NoCompilerOpts() CompilerOpts {
+	return CompilerOpts{
+		OptimizeLabels:     false,
+		PrecomputeExprs:    false,
+		OptimizeJumps:      false,
+		PropagateVariables: false,
+	}
+
+}
+
 type Compiler struct {
-	l    *zap.SugaredLogger
-	fn   string
-	ast  *Program
-	asm  *asmprogram
-	conf CompilerOpts
+	printer printer.Printer
+	ast     *Program
+	asm     *asmprogram
+	conf    CompilerOpts
 }
 
 type CompilerError struct {
@@ -56,16 +73,14 @@ func (ce CompilerError) Error() string {
 	return errStr
 }
 
-func NewCompiler(l *zap.SugaredLogger, fn string, conf CompilerOpts) (*Compiler, error) {
+func NewCompiler(files []io.Reader, conf CompilerOpts, printer printer.Printer) (*Compiler, error) {
 	c := &Compiler{
-		l:    l,
-		fn:   fn,
-		asm:  newASMProgram(conf.OptimizeLabels),
-		conf: conf,
+		printer: printer,
+		asm:     newASMProgram(conf.OptimizeLabels),
+		conf:    conf,
 	}
-
 	// Parse microC into an AST
-	err := c.parse()
+	err := c.parse(files)
 	if err != nil {
 		return nil, err
 	}
@@ -73,23 +88,15 @@ func NewCompiler(l *zap.SugaredLogger, fn string, conf CompilerOpts) (*Compiler,
 	return c, nil
 }
 
-func (comp *Compiler) parse() error {
-	file, err := os.Open(comp.fn)
-	if err != nil {
-		comp.l.Errorf("error while opening file: %v", err)
-		return err
+func (comp *Compiler) parse(files []io.Reader) error {
+	for _, reader := range files {
+		ast, err := parser.Parse("", reader)
+		if err != nil {
+			return err
+		}
+		comp.ast = mergeProgram(comp.ast, ast)
 	}
 
-	defer file.Close()
-
-	ast, err := parser.Parse("", file)
-	repr.Println(ast)
-	if err != nil {
-		comp.l.Errorf("error while parsing: %v", err)
-		return err
-	}
-
-	comp.ast = ast
 	return nil
 }
 
