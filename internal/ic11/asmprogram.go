@@ -236,3 +236,7 @@ func (asm *asmprogram) emitTrunc(a, b *data) {
 func (asm *asmprogram) emitRand(a *data) {
 	asm.emitArityN(rand, a)
 }
+
+func (asm *asmprogram) emitSleep(a *data) {
+	asm.emitArityN(sleep, a)
+}

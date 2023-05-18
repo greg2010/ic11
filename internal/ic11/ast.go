@@ -249,7 +249,7 @@ type BuiltinArity1Func struct {
 				  "atan" | "ceil" |
 				  "floor" | "log" |
 				  "sqrt" | "round" |
-				  "trunc" )`
+				  "trunc" | "sleep" )`
 	Arg *Expr `"(" @@ ")"`
 }
 

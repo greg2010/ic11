@@ -391,6 +391,13 @@ func (fc *funcCompiler) compileBuiltinArity1Func(fun *BuiltinArity1Func, out *re
 		return nil, err
 	}
 
+	// handling sleep separately because it does not return a value
+	if fun.Op == "sleep" {
+		fc.asmProgram.emitSleep(arg)
+		return nil, nil
+
+	}
+
 	if fc.conf.PrecomputeExprs && arg.isFloatValue() {
 		precomp, err := computeBuiltinArity1(arg.floatValue, fun.Op)
 		if err == nil && !math.IsNaN(precomp) {

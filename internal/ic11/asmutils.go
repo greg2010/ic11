@@ -37,6 +37,7 @@ const (
 	s     = "s"
 	sb    = "sb"
 	yield = "yield"
+	sleep = "sleep"
 	bge   = "bge"
 	bgt   = "bgt"
 	ble   = "ble"
