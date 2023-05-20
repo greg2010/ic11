@@ -14,7 +14,7 @@ var noExprOpt bool
 var noJumpOpt bool
 var noVarOpt bool
 var noDeviceAliases bool
-var optimize bool
+var optimize int
 var verbose bool
 var out string
 var rootCmd = &cobra.Command{
@@ -75,7 +75,7 @@ func writeToFile(fname string, contents string) error {
 
 func getCompilerConfig(printer printer.Printer) ic11.CompilerOpts {
 	var conf ic11.CompilerOpts
-	if optimize {
+	if optimize == 2 {
 		conf = ic11.AllCompilerOpts()
 		printer.PrintVerboseln("using all compiler optimizations")
 	} else {
@@ -126,7 +126,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&noJumpOpt, "no-jump-opt", false, "Do not emit special jump instructions (bne bgt etc).")
 	rootCmd.Flags().BoolVar(&noVarOpt, "no-var-opt", false, "Do not propagate known variables to reduce the number of register allocations.")
 	rootCmd.Flags().BoolVar(&noDeviceAliases, "no-device-aliases", false, "Do not emit device alias instructions.")
-	rootCmd.Flags().BoolVarP(&optimize, "optimize", "O", true, "Enable all compiler optimizations (invidiual optimizations can be overriden with specific flags).")
+	rootCmd.Flags().IntVarP(&optimize, "optimize", "O", 2, "Set optimization level preset. 0 -- no optimizations, 2 -- full optimization.")
 	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging.")
 	rootCmd.Flags().StringVarP(&out, "out", "o", "a.out", "Filename to write output to.")
 }
