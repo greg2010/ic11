@@ -14,6 +14,7 @@ var noExprOpt bool
 var noJumpOpt bool
 var noVarOpt bool
 var noDeviceAliases bool
+var noComputeHashes bool
 var optimize int
 var verbose bool
 var out string
@@ -98,6 +99,10 @@ func getCompilerConfig(printer printer.Printer) ic11.CompilerOpts {
 	if noVarOpt {
 		conf.PropagateVariables = false
 	}
+	
+	if noComputeHashes {
+		conf.PrecomputeHashes = false
+	}
 
 	return conf
 }
@@ -126,6 +131,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&noJumpOpt, "no-jump-opt", false, "Do not emit special jump instructions (bne bgt etc).")
 	rootCmd.Flags().BoolVar(&noVarOpt, "no-var-opt", false, "Do not propagate known variables to reduce the number of register allocations.")
 	rootCmd.Flags().BoolVar(&noDeviceAliases, "no-device-aliases", false, "Do not emit device alias instructions.")
+	rootCmd.Flags().BoolVar(&noComputeHashes, "no-compute-hashes", false, "Do not precompute hashes at compile time.")
 	rootCmd.Flags().IntVarP(&optimize, "optimize", "O", 2, "Set optimization level preset. 0 -- no optimizations, 2 -- full optimization.")
 	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging.")
 	rootCmd.Flags().StringVarP(&out, "out", "o", "a.out", "Filename to write output to.")

@@ -24,15 +24,18 @@ type CompilerOpts struct {
 	OptimizeJumps      bool
 	PropagateVariables bool
 	EmitDeviceAliases  bool
+	PrecomputeHashes   bool
 }
 
 func AllCompilerOpts() CompilerOpts {
 	return CompilerOpts{
-		OptimizeLabels:     true,
-		PrecomputeExprs:    true,
-		OptimizeJumps:      true,
-		PropagateVariables: true,
+		OptimizeLabels:  true,
+		PrecomputeExprs: true,
+		OptimizeJumps:   true,
+		// Bug: PropagateVariables is bugged, disabling by default
+		PropagateVariables: false,
 		EmitDeviceAliases:  true,
+		PrecomputeHashes:   true,
 	}
 }
 
@@ -43,6 +46,7 @@ func NoCompilerOpts() CompilerOpts {
 		OptimizeJumps:      false,
 		PropagateVariables: false,
 		EmitDeviceAliases:  true,
+		PrecomputeHashes:   false,
 	}
 
 }

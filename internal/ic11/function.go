@@ -307,7 +307,12 @@ func (fc *funcCompiler) compilePrimary(primary *Primary, out *register) (*data, 
 	}
 
 	if primary.HashConst != nil {
-		return newHashData(primary.HashConst.Arg), nil
+		if AllCompilerOpts().PrecomputeHashes {
+			return newNumData(float64(ComputeHash(primary.HashConst.Arg))), nil
+
+		} else {
+			return newHashData(primary.HashConst.Arg), nil
+		}
 	}
 
 	if primary.StringValue != "" {
