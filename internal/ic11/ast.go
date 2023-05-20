@@ -262,7 +262,7 @@ type BuiltinArity2Func struct {
 
 type BuiltinArity3Func struct {
 	Pos  lexer.Position
-	Op   string `@("store" | "store_batch")`
+	Op   string `@("store" | "store_batch" | "load_batch")`
 	Arg1 *Expr  `"(" @@ ","`
 	Arg2 *Expr  ` @@ ","`
 	Arg3 *Expr  `@@ ")"`

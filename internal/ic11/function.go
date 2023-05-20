@@ -292,7 +292,7 @@ func (fc *funcCompiler) compilePrimary(primary *Primary, out *register) (*data, 
 	}
 
 	if primary.BuiltinArity3Func != nil {
-		return nil, fc.compileBuiltinArity3Func(primary.BuiltinArity3Func)
+		return fc.compileBuiltinArity3Func(primary.BuiltinArity3Func, out)
 	}
 
 	if primary.SubExpression != nil {
@@ -500,35 +500,53 @@ func (fc *funcCompiler) compileBuiltinArity2Func(fun *BuiltinArity2Func, out *re
 	return targetData, nil
 }
 
-func (fc *funcCompiler) compileBuiltinArity3Func(fun *BuiltinArity3Func) error {
+func (fc *funcCompiler) compileBuiltinArity3Func(fun *BuiltinArity3Func, out *register) (*data, error) {
 
 	arg1, err := fc.compileExpr(fun.Arg1, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	arg2, err := fc.compileExpr(fun.Arg2, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	arg3, err := fc.compileExpr(fun.Arg3, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	// These do not return anything, processing them first
 	switch fun.Op {
 	case "store":
 		// Assert arg1 is device and arg2 is int or hash
 		fc.asmProgram.emitS(arg1, arg2, arg3)
+		return nil, nil
 	case "store_batch":
 		// Assert arg1 is device and arg2 is int or hash
 		fc.asmProgram.emitSb(arg1, arg2, arg3)
-	default:
-		return CompilerError{Err: ErrInvalidState, Pos: &fun.Pos}
+		return nil, nil
 	}
 
-	return nil
+	targetReg := out
+	if targetReg == nil {
+		var err error
+		targetReg, err = fc.allocateTempRegister()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	targetData := newRegisterData(targetReg)
+	switch fun.Op {
+	case "load_batch":
+		// Assert arg1 is device and arg2 is int or hash
+		fc.asmProgram.emitLb(targetData, arg1, arg2, arg3)
+		return targetData, nil
+	default:
+		return nil, CompilerError{Err: ErrInvalidState, Pos: &fun.Pos}
+	}
 }
 
 func (fc *funcCompiler) compileAssignment(assignment *Assignment) error {

@@ -129,6 +129,10 @@ func (asm *asmprogram) emitL(a, b, c *data) {
 	asm.emitArityN(l, a, b, c)
 }
 
+func (asm *asmprogram) emitLb(a, b, c, d *data) {
+	asm.emitArityN(lb, a, b, c, d)
+}
+
 func (asm *asmprogram) emitS(a, b, c *data) {
 	asm.emitArityN(s, a, b, c)
 }
