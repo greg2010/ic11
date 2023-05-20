@@ -26,9 +26,16 @@ func newFuncCompiler(
 
 	varRegisterMap := make(map[string]*register)
 	varValueMap := make(map[string]float64)
-	for _, v := range funAST.FunBody.Locals {
-		varValueMap[v.ScalarDec.Name] = 0
+	if conf.PropagateVariables {
+		for _, v := range funAST.FunBody.Locals {
+			varValueMap[v.ScalarDec.Name] = 0
+		}
+	} else {
+		for i, v := range funAST.FunBody.Locals {
+			varRegisterMap[v.ScalarDec.Name] = newRegister(i)
+		}
 	}
+
 	regs := []*register{}
 	for i := 0; i < 15; {
 		regs = append(regs, newRegister(i))
