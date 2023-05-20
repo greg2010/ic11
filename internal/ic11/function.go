@@ -30,10 +30,6 @@ func newFuncCompiler(
 		for _, v := range funAST.FunBody.Locals {
 			varValueMap[v.ScalarDec.Name] = 0
 		}
-	} else {
-		for i, v := range funAST.FunBody.Locals {
-			varRegisterMap[v.ScalarDec.Name] = newRegister(i)
-		}
 	}
 
 	regs := []*register{}
@@ -42,7 +38,7 @@ func newFuncCompiler(
 		i++
 	}
 
-	return &funcCompiler{
+	funComp := &funcCompiler{
 		funAST:         funAST,
 		varRegisterMap: varRegisterMap,
 		varValueMap:    varValueMap,
@@ -51,7 +47,17 @@ func newFuncCompiler(
 		registers:      regs,
 		asmProgram:     asmProgram,
 		conf:           conf,
-	}, nil
+	}
+
+	for _, v := range funAST.FunBody.Locals {
+		reg, err := funComp.allocatePermRegister()
+		if err != nil {
+			return nil, err
+		}
+		varRegisterMap[v.ScalarDec.Name] = reg
+	}
+
+	return funComp, nil
 }
 
 func (fc *funcCompiler) getVariableData(varName string) (*data, error) {
@@ -90,26 +96,24 @@ func (fc *funcCompiler) allocatePermRegister() (*register, error) {
 	return nil, CompilerError{Err: ErrOutOfTempRegisters}
 }
 
-// compileExpr compiles the Expr type. If out is specified, will try to use it instead of a temp register
-//
-//	note that data is not guaranteed to be put in out. the return of the function should be used instead
-func (fc *funcCompiler) compileExpr(expr *Expr, out *register) (*data, error) {
+// compileExpr compiles the Expr type
+func (fc *funcCompiler) compileExpr(expr *Expr) (*data, error) {
 	if expr.Primary != nil {
-		return fc.compilePrimary(expr.Primary, out)
+		return fc.compilePrimary(expr.Primary)
 	}
 
 	if expr.Unary != nil {
-		return fc.compileUnary(expr.Unary, out)
+		return fc.compileUnary(expr.Unary)
 	}
 	if expr.Binary != nil {
-		return fc.compileBinary(expr.Binary, out)
+		return fc.compileBinary(expr.Binary)
 	}
 
 	return nil, CompilerError{Err: ErrInvalidState, Pos: &expr.Pos}
 }
 
-func (fc *funcCompiler) compileUnary(unary *Unary, out *register) (*data, error) {
-	target, err := fc.compilePrimary(unary.RHS, out)
+func (fc *funcCompiler) compileUnary(unary *Unary) (*data, error) {
+	target, err := fc.compilePrimary(unary.RHS)
 	if err != nil {
 		return nil, err
 	}
@@ -122,14 +126,9 @@ func (fc *funcCompiler) compileUnary(unary *Unary, out *register) (*data, error)
 
 	// maybe needs fixing
 
-	var tempReg *register
-	if out != nil {
-		tempReg = out
-	} else if !target.isTemporaryRegister() {
-		tempReg, err = fc.allocateTempRegister()
-		if err != nil {
-			return nil, err
-		}
+	tempReg, err := fc.allocateTempRegister()
+	if err != nil {
+		return nil, err
 	}
 
 	tempData := newRegisterData(tempReg)
@@ -144,18 +143,13 @@ func (fc *funcCompiler) compileUnary(unary *Unary, out *register) (*data, error)
 	return nil, CompilerError{Err: ErrInvalidState, Pos: &unary.Pos}
 }
 
-func (fc *funcCompiler) compileBinary(binary *Binary, out *register) (*data, error) {
-	// Only passing out to left side if right side is a number
-	var leftOut *register
-	if binary.RHS.Number != nil {
-		leftOut = out
-	}
-	leftData, err := fc.compilePrimary(binary.LHS, leftOut)
+func (fc *funcCompiler) compileBinary(binary *Binary) (*data, error) {
+	leftData, err := fc.compilePrimary(binary.LHS)
 	if err != nil {
 		return nil, err
 	}
 
-	rightData, err := fc.compilePrimary(binary.RHS, out)
+	rightData, err := fc.compilePrimary(binary.RHS)
 	if err != nil {
 		return nil, err
 	}
@@ -168,32 +162,24 @@ func (fc *funcCompiler) compileBinary(binary *Binary, out *register) (*data, err
 	}
 
 	var targetReg *register
-	if out != nil {
-		targetReg = out
-	} else if leftData.isTemporaryRegister() {
+	if leftData.isTemporaryRegister() {
 		targetReg = leftData.register
 	} else if rightData.isTemporaryRegister() {
 		targetReg = rightData.register
+	} else {
+		var err error
+		targetReg, err = fc.allocateTempRegister()
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// unsure if this is correct
-	if out != nil && leftData.isTemporaryRegister() {
+	if leftData.isTemporaryRegister() && leftData.register.id != targetReg.id {
 		leftData.register.release()
 	}
 
-	if out != nil && rightData.isTemporaryRegister() && rightData.register.id != out.id {
+	if rightData.isTemporaryRegister() && rightData.register.id != targetReg.id {
 		rightData.register.release()
-	}
-
-	if out == nil && leftData.isTemporaryRegister() && rightData.isTemporaryRegister() {
-		rightData.register.release()
-	}
-
-	if targetReg == nil {
-		targetReg, err = fc.allocateTempRegister()
-		if err != nil {
-			return nil, CompilerError{Err: err, Pos: &binary.Pos}
-		}
 	}
 
 	targetData := newRegisterData(targetReg)
@@ -264,7 +250,7 @@ func (fc *funcCompiler) getSymbolData(symbol string) *data {
 	return nil
 }
 
-func (fc *funcCompiler) compilePrimary(primary *Primary, out *register) (*data, error) {
+func (fc *funcCompiler) compilePrimary(primary *Primary) (*data, error) {
 	if primary.Number != nil {
 		return newNumData(primary.Number.Number), nil
 	}
@@ -287,23 +273,23 @@ func (fc *funcCompiler) compilePrimary(primary *Primary, out *register) (*data, 
 		//fc.compileCallFunc(primary.CallFunc, out)
 	}
 	if primary.BuiltinArity0Func != nil {
-		return fc.compileBuiltinArity0Func(primary.BuiltinArity0Func, out)
+		return fc.compileBuiltinArity0Func(primary.BuiltinArity0Func)
 	}
 
 	if primary.BuiltinArity1Func != nil {
-		return fc.compileBuiltinArity1Func(primary.BuiltinArity1Func, out)
+		return fc.compileBuiltinArity1Func(primary.BuiltinArity1Func)
 	}
 
 	if primary.BuiltinArity2Func != nil {
-		return fc.compileBuiltinArity2Func(primary.BuiltinArity2Func, out)
+		return fc.compileBuiltinArity2Func(primary.BuiltinArity2Func)
 	}
 
 	if primary.BuiltinArity3Func != nil {
-		return fc.compileBuiltinArity3Func(primary.BuiltinArity3Func, out)
+		return fc.compileBuiltinArity3Func(primary.BuiltinArity3Func)
 	}
 
 	if primary.SubExpression != nil {
-		return fc.compileExpr(primary.SubExpression, out)
+		return fc.compileExpr(primary.SubExpression)
 	}
 
 	if primary.HashConst != nil {
@@ -373,32 +359,27 @@ func (fc *funcCompiler) compilePrimary(primary *Primary, out *register) (*data, 
 		return nil, errors.New("not implemented")
 	}
 */
-func (fc *funcCompiler) compileBuiltinArity0Func(fun *BuiltinArity0Func, out *register) (*data, error) {
-	targetReg := out
-	if targetReg == nil {
-		var err error
-		targetReg, err = fc.allocateTempRegister()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	targetData := newRegisterData(targetReg)
+func (fc *funcCompiler) compileBuiltinArity0Func(fun *BuiltinArity0Func) (*data, error) {
 	switch fun.Op {
 	case "yield":
 		fc.asmProgram.emitYield()
 		return nil, nil
 	case "rand":
+		targetReg, err := fc.allocateTempRegister()
+		if err != nil {
+			return nil, err
+		}
+		targetData := newRegisterData(targetReg)
 		fc.asmProgram.emitRand(targetData)
+
 		return targetData, nil
 	}
 
 	return nil, CompilerError{Err: ErrInvalidState, Pos: &fun.Pos}
 }
 
-func (fc *funcCompiler) compileBuiltinArity1Func(fun *BuiltinArity1Func, out *register) (*data, error) {
-
-	arg, err := fc.compileExpr(fun.Arg, out)
+func (fc *funcCompiler) compileBuiltinArity1Func(fun *BuiltinArity1Func) (*data, error) {
+	arg, err := fc.compileExpr(fun.Arg)
 	if err != nil {
 		return nil, err
 	}
@@ -417,13 +398,9 @@ func (fc *funcCompiler) compileBuiltinArity1Func(fun *BuiltinArity1Func, out *re
 		}
 	}
 
-	targetReg := out
-	if targetReg == nil {
-		var err error
-		targetReg, err = fc.allocateTempRegister()
-		if err != nil {
-			return nil, err
-		}
+	targetReg, err := fc.allocateTempRegister()
+	if err != nil {
+		return nil, err
 	}
 
 	targetData := newRegisterData(targetReg)
@@ -462,13 +439,13 @@ func (fc *funcCompiler) compileBuiltinArity1Func(fun *BuiltinArity1Func, out *re
 	return targetData, nil
 }
 
-func (fc *funcCompiler) compileBuiltinArity2Func(fun *BuiltinArity2Func, out *register) (*data, error) {
-	arg1, err := fc.compileExpr(fun.Arg1, nil)
+func (fc *funcCompiler) compileBuiltinArity2Func(fun *BuiltinArity2Func) (*data, error) {
+	arg1, err := fc.compileExpr(fun.Arg1)
 	if err != nil {
 		return nil, err
 	}
 
-	arg2, err := fc.compileExpr(fun.Arg2, out)
+	arg2, err := fc.compileExpr(fun.Arg2)
 	if err != nil {
 		return nil, err
 	}
@@ -480,13 +457,9 @@ func (fc *funcCompiler) compileBuiltinArity2Func(fun *BuiltinArity2Func, out *re
 		}
 	}
 
-	targetReg := out
-	if targetReg == nil {
-		var err error
-		targetReg, err = fc.allocateTempRegister()
-		if err != nil {
-			return nil, err
-		}
+	targetReg, err := fc.allocateTempRegister()
+	if err != nil {
+		return nil, err
 	}
 
 	targetData := newRegisterData(targetReg)
@@ -512,19 +485,18 @@ func (fc *funcCompiler) compileBuiltinArity2Func(fun *BuiltinArity2Func, out *re
 	return targetData, nil
 }
 
-func (fc *funcCompiler) compileBuiltinArity3Func(fun *BuiltinArity3Func, out *register) (*data, error) {
-
-	arg1, err := fc.compileExpr(fun.Arg1, nil)
+func (fc *funcCompiler) compileBuiltinArity3Func(fun *BuiltinArity3Func) (*data, error) {
+	arg1, err := fc.compileExpr(fun.Arg1)
 	if err != nil {
 		return nil, err
 	}
 
-	arg2, err := fc.compileExpr(fun.Arg2, nil)
+	arg2, err := fc.compileExpr(fun.Arg2)
 	if err != nil {
 		return nil, err
 	}
 
-	arg3, err := fc.compileExpr(fun.Arg3, nil)
+	arg3, err := fc.compileExpr(fun.Arg3)
 	if err != nil {
 		return nil, err
 	}
@@ -541,13 +513,9 @@ func (fc *funcCompiler) compileBuiltinArity3Func(fun *BuiltinArity3Func, out *re
 		return nil, nil
 	}
 
-	targetReg := out
-	if targetReg == nil {
-		var err error
-		targetReg, err = fc.allocateTempRegister()
-		if err != nil {
-			return nil, err
-		}
+	targetReg, err := fc.allocateTempRegister()
+	if err != nil {
+		return nil, err
 	}
 
 	targetData := newRegisterData(targetReg)
@@ -569,7 +537,7 @@ func (fc *funcCompiler) compileAssignment(assignment *Assignment) error {
 
 	targetReg := data.register
 
-	value, err := fc.compileExpr(assignment.Right, targetReg)
+	value, err := fc.compileExpr(assignment.Right)
 	if err != nil {
 		return err
 	}
@@ -683,12 +651,12 @@ func (fc *funcCompiler) compileCondJump(op string, l, r, jumpTo *data, invertCon
 // compileCondition compiles conditional branch if cond != invert condition
 func (fc *funcCompiler) compileCondition(cond *Expr, jumpTo *data, invertCondition bool) error {
 	if fc.conf.OptimizeJumps && cond.Binary != nil && opHasCondJump(cond.Binary.Op) {
-		l, err := fc.compilePrimary(cond.Binary.LHS, nil)
+		l, err := fc.compilePrimary(cond.Binary.LHS)
 		if err != nil {
 			return err
 		}
 
-		r, err := fc.compilePrimary(cond.Binary.RHS, nil)
+		r, err := fc.compilePrimary(cond.Binary.RHS)
 		if err != nil {
 			return err
 		}
@@ -710,7 +678,7 @@ func (fc *funcCompiler) compileCondition(cond *Expr, jumpTo *data, invertConditi
 
 	}
 
-	condVal, err := fc.compileExpr(cond, nil)
+	condVal, err := fc.compileExpr(cond)
 	if err != nil {
 		return err
 	}
@@ -811,7 +779,7 @@ func (fc *funcCompiler) compileStmt(stmt *Stmt) error {
 	}
 
 	if stmt.Expr != nil {
-		_, err := fc.compileExpr(stmt.Expr, nil)
+		_, err := fc.compileExpr(stmt.Expr)
 		if err != nil {
 			return err
 		}
