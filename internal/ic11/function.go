@@ -608,8 +608,10 @@ func (fc *funcCompiler) compileAssignment(assignment *Assignment) error {
 				return err
 			}
 		}
-		// move value to register, add to map
-		fc.asmProgram.emitMove(newRegisterData(targetReg), value)
+		// move value to register if needed, add to map
+		if targetReg.id != value.register.id {
+			fc.asmProgram.emitMove(newRegisterData(targetReg), value)
+		}
 		fc.varRegisterMap[assignment.Left] = targetReg
 		return nil
 	}
