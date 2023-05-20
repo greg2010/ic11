@@ -240,3 +240,7 @@ func (asm *asmprogram) emitRand(a *data) {
 func (asm *asmprogram) emitSleep(a *data) {
 	asm.emitArityN(sleep, a)
 }
+
+func (asm *asmprogram) emitAlias(a, b *data) {
+	asm.emitArityN(alias, a, b)
+}

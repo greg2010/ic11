@@ -23,6 +23,7 @@ type CompilerOpts struct {
 	PrecomputeExprs    bool
 	OptimizeJumps      bool
 	PropagateVariables bool
+	EmitDeviceAliases  bool
 }
 
 func AllCompilerOpts() CompilerOpts {
@@ -31,6 +32,7 @@ func AllCompilerOpts() CompilerOpts {
 		PrecomputeExprs:    true,
 		OptimizeJumps:      true,
 		PropagateVariables: true,
+		EmitDeviceAliases:  true,
 	}
 }
 
@@ -40,6 +42,7 @@ func NoCompilerOpts() CompilerOpts {
 		PrecomputeExprs:    false,
 		OptimizeJumps:      false,
 		PropagateVariables: false,
+		EmitDeviceAliases:  true,
 	}
 
 }
@@ -112,12 +115,16 @@ func (comp *Compiler) getConsts() map[string]float64 {
 	return vals
 }
 
-func (comp *Compiler) getDeviceAliases() map[string]string {
+// processDeviceAliases generates device aliases if flag is set and returns a map of aliases
+func (comp *Compiler) processDeviceAliases() map[string]string {
 	vals := make(map[string]string)
 
 	for _, def := range comp.ast.TopDec {
 		if def.DefineDec != nil && def.DefineDec.Device != "" {
 			vals[def.DefineDec.Name] = def.DefineDec.Device
+			if comp.conf.EmitDeviceAliases {
+				comp.asm.emitAlias(newStringData(def.DefineDec.Name), newDeviceData(def.DefineDec.Device))
+			}
 		}
 	}
 
@@ -127,7 +134,7 @@ func (comp *Compiler) getDeviceAliases() map[string]string {
 
 func (comp *Compiler) Compile() (string, error) {
 	consts := comp.getConsts()
-	deviceAliases := comp.getDeviceAliases()
+	deviceAliases := comp.processDeviceAliases()
 
 	mainFunc := comp.getFunc("main")
 	if mainFunc == nil {

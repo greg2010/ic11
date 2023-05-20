@@ -10,9 +10,10 @@ import (
 )
 
 var emitLabels bool
-var precomputeExprs bool
-var optimizeJumps bool
-var propagateVars bool
+var noExprOpt bool
+var noJumpOpt bool
+var noVarOpt bool
+var noDeviceAliases bool
 var optimize bool
 var verbose bool
 var out string
@@ -86,15 +87,15 @@ func getCompilerConfig(printer printer.Printer) ic11.CompilerOpts {
 		conf.OptimizeLabels = false
 	}
 
-	if !precomputeExprs {
+	if noExprOpt {
 		conf.PrecomputeExprs = false
 	}
 
-	if !optimizeJumps {
+	if noJumpOpt {
 		conf.OptimizeJumps = false
 	}
 
-	if !propagateVars {
+	if noVarOpt {
 		conf.PropagateVariables = false
 	}
 
@@ -121,9 +122,10 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolVar(&emitLabels, "emit-labels", false, "Emit labels. If set to false, replaces all labels with absolute addresses.")
-	rootCmd.Flags().BoolVar(&precomputeExprs, "precompute-exprs", true, "Precompute expressions at compile-time. If set to true, computes simple expressions ahead of time.")
-	rootCmd.Flags().BoolVar(&optimizeJumps, "optimize-jumps", true, "Emit special jump instructions (bne bgt etc).")
-	rootCmd.Flags().BoolVar(&propagateVars, "propagate-vars", true, "Propagate known variables to reduce the number of register allocations.")
+	rootCmd.Flags().BoolVar(&noExprOpt, "no-expr-opt", false, "Dp not precompute expressions at compile-time.")
+	rootCmd.Flags().BoolVar(&noJumpOpt, "no-jump-opt", false, "Do not emit special jump instructions (bne bgt etc).")
+	rootCmd.Flags().BoolVar(&noVarOpt, "no-var-opt", false, "Do not propagate known variables to reduce the number of register allocations.")
+	rootCmd.Flags().BoolVar(&noDeviceAliases, "no-device-aliases", false, "Do not emit device alias instructions.")
 	rootCmd.Flags().BoolVarP(&optimize, "optimize", "O", true, "Enable all compiler optimizations (invidiual optimizations can be overriden with specific flags).")
 	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging.")
 	rootCmd.Flags().StringVarP(&out, "out", "o", "a.out", "Filename to write output to.")

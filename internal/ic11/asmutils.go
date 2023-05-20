@@ -58,6 +58,7 @@ const (
 	round = "round"
 	trunc = "trunc"
 	rand  = "rand"
+	alias = "alias"
 )
 
 func replaceLabelData(lblMap map[string]int, d *data) (*data, error) {
