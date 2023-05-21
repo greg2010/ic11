@@ -22,6 +22,7 @@ const (
 	sle   = "sle"
 	slt   = "slt"
 	seq   = "seq"
+	seqz  = "seqz"
 	sne   = "sne"
 	j     = "j"
 	bnez  = "bnez"

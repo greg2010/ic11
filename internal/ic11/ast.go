@@ -204,7 +204,7 @@ type Binary struct {
 type Unary struct {
 	Pos lexer.Position
 
-	Op  string   `@( "-" )`
+	Op  string   `@( "-" | "!" )`
 	RHS *Primary `@@`
 }
 

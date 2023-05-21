@@ -58,7 +58,7 @@ run ic11c help for details on how to use it.`,
 			os.Exit(1)
 		}
 
-		printer.PrintVerbose("compilation successful")
+		printer.PrintVerboseln("compilation successful")
 	},
 }
 
@@ -99,7 +99,7 @@ func getCompilerConfig(printer printer.Printer) ic11.CompilerOpts {
 	if noVarOpt {
 		conf.PropagateVariables = false
 	}
-	
+
 	if noComputeHashes {
 		conf.PrecomputeHashes = false
 	}

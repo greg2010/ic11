@@ -93,6 +93,10 @@ func (asm *asmprogram) emitSeq(a, b, c *data) {
 	asm.emitArityN(seq, a, b, c)
 }
 
+func (asm *asmprogram) emitSeqz(a, b *data) {
+	asm.emitArityN(seqz, a, b)
+}
+
 func (asm *asmprogram) emitSne(a, b, c *data) {
 	asm.emitArityN(sne, a, b, c)
 }

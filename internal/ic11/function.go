@@ -113,14 +113,20 @@ func (fc *funcCompiler) compileExpr(expr *Expr) (*data, error) {
 }
 
 func (fc *funcCompiler) compileUnary(unary *Unary) (*data, error) {
-	target, err := fc.compilePrimary(unary.RHS)
+	arg, err := fc.compilePrimary(unary.RHS)
 	if err != nil {
 		return nil, err
 	}
 
-	if fc.conf.PrecomputeExprs && target.isFloatValue() {
-		if unary.Op == "-" {
+	if fc.conf.PrecomputeExprs && arg.isFloatValue() {
+		switch unary.Op {
+		case "-":
 			return newNumData(unary.RHS.Number.Number * -1), nil
+		case "!":
+			// Coerce Number to bool, negate, and convert back to float
+			return newNumData(boolToFloat(!floatToBool(unary.RHS.Number.Number))), nil
+		default:
+			return nil, CompilerError{Err: ErrInvalidState, Pos: &unary.Pos}
 		}
 	}
 
@@ -133,14 +139,17 @@ func (fc *funcCompiler) compileUnary(unary *Unary) (*data, error) {
 
 	tempData := newRegisterData(tempReg)
 
-	fc.asmProgram.emitMove(tempData, target)
-
-	if unary.Op == "-" {
+	switch unary.Op {
+	case "-":
+		fc.asmProgram.emitMove(tempData, arg)
 		fc.asmProgram.emitSub(tempData, newNumData(0), tempData)
 		return tempData, nil
+	case "!":
+		fc.asmProgram.emitSeqz(tempData, arg)
+		return tempData, nil
+	default:
+		return nil, CompilerError{Err: ErrInvalidState, Pos: &unary.Pos}
 	}
-
-	return nil, CompilerError{Err: ErrInvalidState, Pos: &unary.Pos}
 }
 
 func (fc *funcCompiler) compileBinary(binary *Binary) (*data, error) {
