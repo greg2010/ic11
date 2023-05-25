@@ -1,6 +1,6 @@
 //nolint:govet
 //nolint:structtag
-package ic11
+package parser
 
 import (
 	"github.com/alecthomas/participle/v2"
@@ -12,7 +12,7 @@ var (
 		{Name: "comment", Pattern: `//.*|/\*.*?\*/`},
 		{Name: "whitespace", Pattern: `\s+`},
 		{Name: "Define", Pattern: "#define"},
-		{Name: "Type", Pattern: `\bnum\b`},
+		{Name: "Type", Pattern: `\b(int|float|string)\b`},
 		{Name: "Device", Pattern: "d([0-6]|b)(:[0-9])?"},
 		{Name: "Ident", Pattern: `\b([a-zA-Z_][a-zA-Z0-9_]*)\b`},
 		{Name: "Punct", Pattern: `[-,()*/+%{};&\|!=:<>]|\[|\]`},
@@ -21,59 +21,29 @@ var (
 		{Name: "Int", Pattern: `\d+`},
 	})
 
-	// Build parser
-	parser = participle.MustBuild[Program](
+	// Build basicParser
+	basicParser = participle.MustBuild[AST](
 		participle.Unquote("QuotedStr"),
 		participle.Lexer(lex),
 		participle.UseLookahead(600))
+	mappingParser = func(mapFunc participle.Mapper) *participle.Parser[AST] {
+		return participle.MustBuild[AST](
+			participle.Unquote("QuotedStr"),
+			participle.Map(mapFunc),
+			participle.Lexer(lex),
+			participle.UseLookahead(600))
+	}
 )
 
 // https://www.it.uu.se/katalog/aleji304/CompilersProject/uc.html
-//
-// program         ::= topdec_list
-// topdec_list     ::= /empty/ | topdec topdec_list
-// topdec          ::= vardec ";"
-//                  | funtype ident "(" formals ")" funbody
-// vardec          ::= scalardec | arraydec
-// scalardec       ::= typename ident
-// arraydec        ::= typename ident "[" intconst "]"
-// typename        ::= "int" | "char"
-// funtype         ::= typename | "void"
-// funbody         ::= "{" locals stmts "}" | ";"
-// formals         ::= "void" | formal_list
-// formal_list     ::= formaldec | formaldec "," formal_list
-// formaldec       ::= scalardec | typename ident "[" "]"
-// locals          ::= /empty/ | vardec ";" locals
-// stmts           ::= /empty/ | stmt stmts
-// stmt            ::= expr ";"
-//                  | "return" expr ";" | "return" ";"
-//                  | "while" condition stmt
-//                  | "if" condition stmt else_part
-//                  | "{" stmts "}"
-//                  | ";"
-// else_part       ::= /empty/ | "else" stmt
-// condition       ::= "(" expr ")"
-// expr            ::= intconst
-//                  | ident | ident "[" expr "]"
-//                  | unop expr
-//                  | expr binop expr
-//                  | ident "(" actuals ")"
-//                  | "(" expr ")"
-// unop            ::= "-" | "!"
-// binop           ::= "+" | "-" | "*" | "/"
-//                  | "<" | ">" | "<=" | ">=" | "!=" | "=="
-//                  | "&&"
-//                  | "="
-// actuals         ::= /empty/ | expr_list
-// expr_list       ::= expr | expr "," expr_list
 
-type Program struct {
+type AST struct {
 	Pos lexer.Position
 
 	TopDec []*TopDec `@@*`
 }
 
-func mergeProgram(p1, p2 *Program) *Program {
+func mergeAST(p1, p2 *AST) *AST {
 	newTopDec := []*TopDec{}
 	var p lexer.Position
 	if p1 != nil {
@@ -84,7 +54,7 @@ func mergeProgram(p1, p2 *Program) *Program {
 		newTopDec = append(newTopDec, p2.TopDec...)
 		p = p2.Pos
 	}
-	return &Program{
+	return &AST{
 		Pos:    p,
 		TopDec: newTopDec,
 	}
@@ -100,9 +70,9 @@ type TopDec struct {
 
 type DefineDec struct {
 	Pos    lexer.Position
-	Name   string  `Define @Ident`
-	Device string  `@Device`
-	Value  *Number `| @@`
+	Name   string   `Define @Ident`
+	Device string   `@Device`
+	Value  *Literal `| @@`
 }
 
 type VarDec struct {
@@ -151,6 +121,7 @@ type Stmt struct {
 	ReturnStmt *ReturnStmt `| @@`
 	WhileStmt  *WhileStmt  `| @@`
 	Assignment *Assignment `| @@`
+	CallFunc   *CallFunc   `| @@`
 	Expr       *Expr       `| @@`
 	Block      *Stmts      `| "{" @@ "}"`
 	Empty      bool        `| @";"`
@@ -211,22 +182,16 @@ type Unary struct {
 type Primary struct {
 	Pos lexer.Position
 
-	HashConst         *HashConst         `  @@`
-	Device            string             `| @Device`
-	BuiltinArity3Func *BuiltinArity3Func `| @@`
-	BuiltinArity2Func *BuiltinArity2Func `| @@`
-	BuiltinArity1Func *BuiltinArity1Func `| @@`
-	BuiltinArity0Func *BuiltinArity0Func `| @@`
-	CallFunc          *CallFunc          `| @@`
-	Number            *Number            `| @@`
-	Ident             string             `| @Ident`
-	StringValue       string             "| @QuotedStr"
-	SubExpression     *Expr              `| "(" @@ ")" `
+	CallFunc      *CallFunc `  @@`
+	Literal       *Literal  `| @@`
+	Ident         string    `| @Ident`
+	SubExpression *Expr     `| "(" @@ ")" `
 }
 
-// Int | Float union type
-type Number struct {
-	Number float64 `@('-'? (Float | Int))`
+type Literal struct {
+	Int    *int64   `  @('-'? Int)`
+	Float  *float64 `| @('-'? Float)`
+	String *string  `| @QuotedStr`
 }
 
 // Special function types

@@ -6,17 +6,14 @@ run:
 linters:
   disable-all: true
   enable:
-    - deadcode
     - errcheck
     - gosimple
     - govet
     - ineffassign
     - staticcheck
-    - structcheck
     - typecheck
     - unused
     - revive
-    - varcheck
     - forcetypeassert
     - exhaustive
     - gofmt

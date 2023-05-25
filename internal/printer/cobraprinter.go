@@ -17,7 +17,6 @@ func (cp *CobraPrinter) Print(i ...interface{}) {
 }
 func (cp *CobraPrinter) Printf(format string, i ...interface{}) {
 	cp.cmd.Printf(format, i...)
-
 }
 
 func (cp *CobraPrinter) Println(i ...interface{}) {
@@ -30,7 +29,6 @@ func (cp *CobraPrinter) PrintVerbose(i ...interface{}) {
 	}
 
 	cp.cmd.Print(i...)
-
 }
 func (cp *CobraPrinter) PrintVerbosef(format string, i ...interface{}) {
 	if !cp.verbose {
@@ -46,7 +44,6 @@ func (cp *CobraPrinter) PrintVerboseln(i ...interface{}) {
 	}
 
 	cp.cmd.Println(i...)
-
 }
 
 func (cp *CobraPrinter) PrintError(i ...interface{}) {

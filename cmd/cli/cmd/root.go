@@ -3,9 +3,9 @@ package cmd
 import (
 	"os"
 
-	"github.com/greg2010/ic11/internal/filereader"
-	"github.com/greg2010/ic11/internal/ic11"
-	"github.com/greg2010/ic11/internal/printer"
+	"github.com/greg2010/ic11c/internal/filereader"
+	"github.com/greg2010/ic11c/internal/ic11/compiler"
+	"github.com/greg2010/ic11c/internal/printer"
 	"github.com/spf13/cobra"
 )
 
@@ -38,9 +38,9 @@ run ic11c help for details on how to use it.`,
 		}
 		defer reader.Close()
 
-		conf := getCompilerConfig(printer)
+		//conf := getCompilerConfig(printer)
 
-		compiler, err := ic11.NewCompiler(reader.GetReaders(), conf, printer)
+		compiler, err := compiler.New(reader.GetReaders())
 		if err != nil {
 			printer.PrintErrorf("parsing failed: %v\n", err)
 			os.Exit(1)
@@ -74,6 +74,7 @@ func writeToFile(fname string, contents string) error {
 	return err
 }
 
+/*
 func getCompilerConfig(printer printer.Printer) ic11.CompilerOpts {
 	var conf ic11.CompilerOpts
 	if optimize == 2 {
@@ -106,7 +107,7 @@ func getCompilerConfig(printer printer.Printer) ic11.CompilerOpts {
 
 	return conf
 }
-
+*/
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {

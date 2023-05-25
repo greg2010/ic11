@@ -1,4 +1,4 @@
-module github.com/greg2010/ic11
+module github.com/greg2010/ic11c
 
 go 1.20
 
