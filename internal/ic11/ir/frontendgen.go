@@ -6,11 +6,12 @@ import (
 	"github.com/greg2010/ic11c/internal/ic11/parser"
 )
 
+// compile traverses the AST, calling corresponding compile* functions for each node type.
 func (fr *Frontend) compile(ast *parser.AST) error {
 	for _, top := range ast.TopDec {
 		if top.FunDec != nil && top.FunDec.Name == "main" {
 			if len(top.FunDec.Parameters) != 0 {
-				return errors.New("main function cannot have parameters")
+				return ErrMainFuncParameters
 			}
 
 			err := fr.compileFunDec(top.FunDec)
@@ -162,11 +163,13 @@ func (fr *Frontend) compileBinary(b *parser.Binary) (*IRVar, error) {
 		return nil, err
 	}
 
+	// TODO convert binary operations to the known set of ops
 	fr.emit(IRAssignBinary{Assignee: v, L: *l, R: *r, Op: b.Op})
 	return &v, nil
 }
 
 func (fr *Frontend) compileUnary(u *parser.Unary) (*IRVar, error) {
+	// TODO implement unary ops
 	return nil, errors.New("invalid unary state")
 }
 

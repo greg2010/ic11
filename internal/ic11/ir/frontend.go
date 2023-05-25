@@ -9,6 +9,7 @@ import (
 
 var ErrInvalidFunctionCall = errors.New("invalid function call")
 var ErrInvalidState = errors.New("parser produced invalid state")
+var ErrMainFuncParameters = errors.New("main function cannot have parameters")
 
 type Frontend struct {
 	varCount   int

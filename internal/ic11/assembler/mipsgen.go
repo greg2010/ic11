@@ -9,7 +9,8 @@ import (
 )
 
 var (
-	ErrUnknownIRInstruction = errors.New("unknown IR instruction")
+	ErrUnknownIRInstruction          = errors.New("unknown IR instruction")
+	ErrInvalidIRInstructionArguments = errors.New("invalid IR instruction argumetns")
 )
 
 type MipsAssembler struct {
@@ -80,8 +81,27 @@ func (ma *MipsAssembler) emitAsssignVar(irInstr ir.IRAssignVar) {
 // t0 = a + 1;
 // ->
 // add r1 r0 1
-func (ma *MipsAssembler) emitAsssignBinary(irInstr ir.IRAssignBinary) {
-	panic("unimplmented")
+func (ma *MipsAssembler) emitAsssignBinary(irInstr ir.IRAssignBinary) error {
+	switch irInstr.Op {
+	case "+":
+		return nil
+	case "-":
+		return nil
+	case "/":
+		return nil
+	case "*":
+		return nil
+	case "||":
+		return nil
+	case "&&":
+		return nil
+	case "==":
+		return nil
+	case "<":
+		return nil
+	default:
+		return ErrInvalidIRInstructionArguments
+	}
 }
 
 // emitLabel emits MIPS code that corresponds to IRLabel

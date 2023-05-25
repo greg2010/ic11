@@ -2,6 +2,8 @@ package regassign
 
 import "github.com/greg2010/ic11c/internal/ic11/ir"
 
+// DummyAssigner is a type of register assigner.
+// It assigns each variable a unique register, and never releases them.
 type DummyAssigner struct {
 	program       *ir.Program
 	assignedSoFar map[ir.IRVar]int
