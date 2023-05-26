@@ -77,18 +77,30 @@ func (ma *MipsAssembler) emitAssignLiteral(irInstr ir.IRAssignLiteral) {
 // ->
 // move r1 r0
 func (ma *MipsAssembler) emitAsssignVar(irInstr ir.IRAssignVar) {
-	panic("unimplmented")
+	regNumber := ma.registerAssigner.GetRegister(irInstr.Assignee)
+	regName := mipsRegisterName(regNumber)
+	regNumber2 := ma.registerAssigner.GetRegister(irInstr.ValueVar)
+	regName2 := mipsRegisterName(regNumber2)
+	ma.program.Emit(newInstructionN(move, regName, regName2))
 }
 
 // emitAsssignBinary emits MIPS code that corresponds to IRAssignBinary
 // example:
-// t0 = a + 1;
+// t0 = a + b;
 // ->
-// add r1 r0 1
+// add r1 r0 r2
 func (ma *MipsAssembler) emitAsssignBinary(irInstr ir.IRAssignBinary) error {
 	switch irInstr.Op {
 	case "+":
+		regNumber := ma.registerAssigner.GetRegister(irInstr.Assignee)
+		regName := mipsRegisterName(regNumber)
+		regNumber2 := ma.registerAssigner.GetRegister(irInstr.L)
+		regName2 := mipsRegisterName(regNumber2)
+		regNumber3 := ma.registerAssigner.GetRegister(irInstr.R)
+		regName3 := mipsRegisterName(regNumber3)
+		ma.program.Emit(newInstructionN(add, regName, regName2, regName3))
 		return nil
+
 	case "-":
 		return nil
 	case "/":
