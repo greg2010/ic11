@@ -28,6 +28,10 @@ func New(program *ir.Program, reg regassign.RegisterAssigner) (*MipsAssembler, e
 	return assembler, nil
 }
 
+func (ma *MipsAssembler) String() string {
+	return ma.program.String()
+}
+
 // compile iterates over IR program and emits corresponding MIPS instructions to MipsProgram
 func (ma *MipsAssembler) compile(irProgram *ir.Program) error {
 	for _, irInstr := range irProgram.Get() {

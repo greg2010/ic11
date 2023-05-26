@@ -5,8 +5,10 @@ import (
 	"io"
 	"strings"
 
+	"github.com/greg2010/ic11c/internal/ic11/assembler"
 	"github.com/greg2010/ic11c/internal/ic11/ir"
 	"github.com/greg2010/ic11c/internal/ic11/parser"
+	"github.com/greg2010/ic11c/internal/ic11/regassign"
 )
 
 type Compiler struct {
@@ -35,6 +37,12 @@ func (c *Compiler) Compile() (string, error) {
 	var b strings.Builder
 	fmt.Fprintln(&b, "raw IR:")
 	b.WriteString(c.ir.String())
+	asm, err := assembler.New(c.ir.Get(), regassign.NewDummyAssigner(c.ir.Get()))
+	if err != nil {
+		return "", err
+	}
+	fmt.Fprintln(&b, "MIPS:")
+	b.WriteString(asm.String())
 	//fmt.Fprintln(&b, "Block view:")
 	//blockProg := ir.NewBlockProgram(c.ir.Get())
 	//b.WriteString(blockProg.String())
