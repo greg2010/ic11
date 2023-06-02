@@ -10,7 +10,8 @@ import (
 
 var (
 	ErrUnknownIRInstruction          = errors.New("unknown IR instruction")
-	ErrInvalidIRInstructionArguments = errors.New("invalid IR instruction argumetns")
+	ErrInvalidIRInstructionArguments = errors.New("invalid IR instruction arguments")
+	ErrInvalidParameterType          = errors.New("invalid parameter type")
 )
 
 type MipsAssembler struct {
@@ -41,7 +42,10 @@ func (ma *MipsAssembler) compile(irProgram *ir.Program) error {
 		case ir.IRAssignVar:
 			ma.emitAsssignVar(i)
 		case ir.IRAssignBinary:
-			ma.emitAsssignBinary(i)
+			err := ma.emitAsssignBinary(i)
+			if err != nil {
+				return err
+			}
 		case ir.IRLabel:
 			ma.emitLabel(i)
 		case ir.IRGoto:
@@ -49,14 +53,19 @@ func (ma *MipsAssembler) compile(irProgram *ir.Program) error {
 		case ir.IRIfZ:
 			ma.emitIfZ(i)
 		case ir.IRBuiltinCallVoid:
-			ma.emitBuiltinCallVoid(i)
+			err := ma.emitBuiltinCallVoid(i)
+			if err != nil {
+				return err
+			}
 		case ir.IRBuiltinCallRet:
-			ma.emitBuiltinCallRet(i)
+			err := ma.emitBuiltinCallRet(i)
+			if err != nil {
+				return err
+			}
 		default:
 			return ErrUnknownIRInstruction
 		}
 	}
-
 	return nil
 }
 
@@ -77,35 +86,50 @@ func (ma *MipsAssembler) emitAssignLiteral(irInstr ir.IRAssignLiteral) {
 // ->
 // move r1 r0
 func (ma *MipsAssembler) emitAsssignVar(irInstr ir.IRAssignVar) {
-	panic("unimplmented")
+	regNumber := ma.registerAssigner.GetRegister(irInstr.Assignee)
+	regName := mipsRegisterName(regNumber)
+	regNumber2 := ma.registerAssigner.GetRegister(irInstr.ValueVar)
+	regName2 := mipsRegisterName(regNumber2)
+	ma.program.Emit(newInstructionN(move, regName, regName2))
 }
 
 // emitAsssignBinary emits MIPS code that corresponds to IRAssignBinary
 // example:
-// t0 = a + 1;
+// t0 = a + b;
 // ->
-// add r1 r0 1
+// add r1 r0 r2
 func (ma *MipsAssembler) emitAsssignBinary(irInstr ir.IRAssignBinary) error {
+	regNumber := ma.registerAssigner.GetRegister(irInstr.Assignee)
+	regName := mipsRegisterName(regNumber)
+	regNumber2 := ma.registerAssigner.GetRegister(irInstr.L)
+	regName2 := mipsRegisterName(regNumber2)
+	regNumber3 := ma.registerAssigner.GetRegister(irInstr.R)
+	regName3 := mipsRegisterName(regNumber3)
+
+	var opType string
+
 	switch irInstr.Op {
 	case "+":
-		return nil
+		opType = add
 	case "-":
-		return nil
+		opType = sub
 	case "/":
-		return nil
+		opType = div
 	case "*":
-		return nil
+		opType = mul
 	case "||":
-		return nil
+		opType = or
 	case "&&":
-		return nil
+		opType = and
 	case "==":
-		return nil
+		opType = seq
 	case "<":
-		return nil
+		opType = slt
 	default:
 		return ErrInvalidIRInstructionArguments
 	}
+	ma.program.Emit(newInstructionN(opType, regName, regName2, regName3))
+	return nil
 }
 
 // emitLabel emits MIPS code that corresponds to IRLabel
@@ -114,7 +138,8 @@ func (ma *MipsAssembler) emitAsssignBinary(irInstr ir.IRAssignBinary) error {
 // ->
 // _L1:
 func (ma *MipsAssembler) emitLabel(irInstr ir.IRLabel) {
-	panic("unimplmented")
+	labelName := string(irInstr.Label)
+	ma.program.Emit(mipsLabel{labelName})
 }
 
 // emitGoto emits MIPS code that corresponds to IRGoto
@@ -123,7 +148,8 @@ func (ma *MipsAssembler) emitLabel(irInstr ir.IRLabel) {
 // ->
 // j _L0
 func (ma *MipsAssembler) emitGoto(irInstr ir.IRGoto) {
-	panic("unimplmented")
+	labelName := string(irInstr.Label)
+	ma.program.Emit(newInstructionN(j, labelName))
 }
 
 // emitIfZ emits MIPS code that corresponds to emitIfZ
@@ -132,7 +158,10 @@ func (ma *MipsAssembler) emitGoto(irInstr ir.IRGoto) {
 // ->
 // beqz r0 _L0
 func (ma *MipsAssembler) emitIfZ(irInstr ir.IRIfZ) {
-	panic("unimplmented")
+	labelName := string(irInstr.Label)
+	regNumber := ma.registerAssigner.GetRegister(irInstr.Cond)
+	regName := mipsRegisterName(regNumber)
+	ma.program.Emit(newInstructionN(beqz, regName, labelName))
 }
 
 // emitBuiltinCallVoid emits MIPS code that corresponds to IRBuiltinCallVoid
@@ -140,8 +169,19 @@ func (ma *MipsAssembler) emitIfZ(irInstr ir.IRIfZ) {
 // Bcall store d0 "Vertical" t0;
 // ->
 // beqz r0 _L0
-func (ma *MipsAssembler) emitBuiltinCallVoid(irInstr ir.IRBuiltinCallVoid) {
-	panic("unimplmented")
+func (ma *MipsAssembler) emitBuiltinCallVoid(irInstr ir.IRBuiltinCallVoid) error {
+	paramSlice := ma.sliceParameters(irInstr.Params)
+	var opType string
+	switch irInstr.BuiltinName {
+	case "store":
+		opType = s
+	case "store_batch":
+		opType = sb
+	default:
+		return ErrInvalidIRInstructionArguments
+	}
+	ma.program.Emit(newInstructionN(opType, paramSlice...))
+	return nil
 }
 
 // emitIfZ emits MIPS code that corresponds to IRBuiltinCallRet
@@ -149,12 +189,48 @@ func (ma *MipsAssembler) emitBuiltinCallVoid(irInstr ir.IRBuiltinCallVoid) {
 // t0 = Bcall load d2 On;
 // ->
 // l r0 d2 On
-func (ma *MipsAssembler) emitBuiltinCallRet(irInstr ir.IRBuiltinCallRet) {
-	panic("unimplmented")
+func (ma *MipsAssembler) emitBuiltinCallRet(irInstr ir.IRBuiltinCallRet) error {
+	regNumber := ma.registerAssigner.GetRegister(irInstr.Ret)
+	regName := mipsRegisterName(regNumber)
+	argSlice := []string{regName}
+	paramSlice := ma.sliceParameters(irInstr.Params)
+
+	argSlice = append(argSlice, paramSlice...)
+	var opType string
+
+	switch irInstr.BuiltinName {
+	case "load":
+		opType = l
+	case "load_batch":
+		opType = lb
+	case "load_reagent":
+		opType = lr
+	case "rand":
+		opType = rand
+	default:
+		return ErrInvalidIRInstructionArguments
+	}
+	ma.program.Emit(newInstructionN(opType, argSlice...))
+	return nil
 }
 
 // Helpers
 
 func mipsRegisterName(registerNumber int) string {
 	return fmt.Sprintf("r%d", registerNumber)
+}
+
+func (ma *MipsAssembler) sliceParameters(params []ir.IRLiteralOrVar) []string {
+	slice := []string{}
+
+	for _, element := range params {
+		if element.IsVar() {
+			regNumber := ma.registerAssigner.GetRegister(element.GetVariable())
+			regName := mipsRegisterName(regNumber)
+			slice = append(slice, regName)
+		} else {
+			slice = append(slice, element.String())
+		}
+	}
+	return slice
 }

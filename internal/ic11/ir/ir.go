@@ -70,12 +70,21 @@ type IRLiteralOrVar struct {
 	v   *IRVar
 }
 
+// keyword (variable-assigned-to-type type) function-name (arguments-passed) return-type {implementation}
 func NewLiteralOrVarLiteral(lit IRLiteralType) IRLiteralOrVar {
 	return IRLiteralOrVar{lit: &lit}
 }
 
 func NewLiteralOrVarVar(v IRVar) IRLiteralOrVar {
 	return IRLiteralOrVar{v: &v}
+}
+
+func (litOrVar IRLiteralOrVar) IsLiteral() bool {
+	return litOrVar.lit != nil
+}
+
+func (litOrVar IRLiteralOrVar) IsVar() bool {
+	return litOrVar.v != nil
 }
 
 func (litOrVar IRLiteralOrVar) String() string {
@@ -88,6 +97,13 @@ func (litOrVar IRLiteralOrVar) String() string {
 	}
 
 	panic("empty irliteralOrVar")
+}
+
+func (litOrVar IRLiteralOrVar) GetVariable() IRVar {
+	if litOrVar.v != nil {
+		return *litOrVar.v
+	}
+	panic("literal is not variable")
 }
 
 // All instructions must implement the following interface
