@@ -64,7 +64,6 @@ func (ma *MipsAssembler) compile(irProgram *ir.Program) error {
 			}
 		default:
 			return ErrUnknownIRInstruction
-
 		}
 	}
 	return nil
@@ -100,7 +99,6 @@ func (ma *MipsAssembler) emitAsssignVar(irInstr ir.IRAssignVar) {
 // ->
 // add r1 r0 r2
 func (ma *MipsAssembler) emitAsssignBinary(irInstr ir.IRAssignBinary) error {
-
 	regNumber := ma.registerAssigner.GetRegister(irInstr.Assignee)
 	regName := mipsRegisterName(regNumber)
 	regNumber2 := ma.registerAssigner.GetRegister(irInstr.L)
@@ -164,7 +162,6 @@ func (ma *MipsAssembler) emitIfZ(irInstr ir.IRIfZ) {
 	regNumber := ma.registerAssigner.GetRegister(irInstr.Cond)
 	regName := mipsRegisterName(regNumber)
 	ma.program.Emit(newInstructionN(beqz, regName, labelName))
-
 }
 
 // emitBuiltinCallVoid emits MIPS code that corresponds to IRBuiltinCallVoid
@@ -173,13 +170,9 @@ func (ma *MipsAssembler) emitIfZ(irInstr ir.IRIfZ) {
 // ->
 // beqz r0 _L0
 func (ma *MipsAssembler) emitBuiltinCallVoid(irInstr ir.IRBuiltinCallVoid) error {
-
 	paramSlice := ma.sliceParameters(irInstr.Params)
-
 	var opType string
-
 	switch irInstr.BuiltinName {
-
 	case "store":
 		opType = s
 	case "store_batch":
@@ -197,7 +190,6 @@ func (ma *MipsAssembler) emitBuiltinCallVoid(irInstr ir.IRBuiltinCallVoid) error
 // ->
 // l r0 d2 On
 func (ma *MipsAssembler) emitBuiltinCallRet(irInstr ir.IRBuiltinCallRet) error {
-
 	regNumber := ma.registerAssigner.GetRegister(irInstr.Ret)
 	regName := mipsRegisterName(regNumber)
 	argSlice := []string{regName}
@@ -207,7 +199,6 @@ func (ma *MipsAssembler) emitBuiltinCallRet(irInstr ir.IRBuiltinCallRet) error {
 	var opType string
 
 	switch irInstr.BuiltinName {
-
 	case "load":
 		opType = l
 	case "load_batch":
@@ -230,11 +221,9 @@ func mipsRegisterName(registerNumber int) string {
 }
 
 func (ma *MipsAssembler) sliceParameters(params []ir.IRLiteralOrVar) []string {
-
 	slice := []string{}
 
 	for _, element := range params {
-
 		if element.IsVar() {
 			regNumber := ma.registerAssigner.GetRegister(element.GetVariable())
 			regName := mipsRegisterName(regNumber)
@@ -244,5 +233,4 @@ func (ma *MipsAssembler) sliceParameters(params []ir.IRLiteralOrVar) []string {
 		}
 	}
 	return slice
-
 }
