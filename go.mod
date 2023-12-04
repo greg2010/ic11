@@ -3,7 +3,7 @@ module github.com/greg2010/ic11c
 go 1.20
 
 require (
-	github.com/alecthomas/participle/v2 v2.0.0
+	github.com/alecthomas/participle/v2 v2.1.1
 	github.com/spf13/cobra v1.7.0
 )
 
